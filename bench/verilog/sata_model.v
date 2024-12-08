@@ -76,6 +76,9 @@
 // }}}
 module	sata_model (
 		// {{{
+		input	wire		i_phy_ready,
+		input	wire		i_comfinish,
+		input	wire		i_cominit_det, i_comwake_det,
 		input	wire		i_rx_p, i_rx_n,
 		output	wire		o_tx_p, o_tx_n
 		// }}}
@@ -84,7 +87,24 @@ module	sata_model (
 	// Local parameters
 	// {{{
 	// 1500Mb/s -- could also be 3000Mb/s or 6000Mb/s
-	localparam	realtime	TXCLK_PERIOD= 1.0/1.5;	// ns
+	localparam	realtime	TXCLK_PERIOD	= 1.0/1.5;	// ns
+	localparam	realtime	RXCLK_PERIOD	= 1.0/1.5;
+    localparam	realtime	SYSCLK_PERIOD	= 16.667;
+    localparam	realtime	DCLK_PERIOD		= 16.667;
+
+	// OOB timings (check page 209-210 in SATA doc.)
+    localparam	realtime	T_COMRESET_BURST = 107;	// 106.7 ns (Nominal)
+    localparam	realtime	T_COMRESET_GAP   = 320;	// 320.0 ns (Nominal)
+	localparam 	realtime	T_COMCALIBRATE 	 = 150;
+    localparam	realtime	T_COMWAKE_BURST  = 107;	// 106.7 ns (Nominal)
+    localparam	realtime	T_COMWAKE_GAP    = 107;	// 106.7 ns (Nominal)
+	localparam 	realtime	T_COMINIT_MIN	 = 100;	// COMINIT için minimum yüksek süre
+    localparam 	realtime	T_COMINIT_MAX	 = 110;	// COMINIT için maksimum yüksek süre
+    localparam 	realtime	T_COMWAKE_MIN	 = 100;	// COMWAKE için minimum yüksek süre
+    localparam 	realtime	T_COMWAKE_MAX	 = 110;	// COMWAKE için maksimum yüksek süre
+
+    reg [31:0]  counter;
+    wire     rx_p, rx_n;
 
 	reg		mdl_reset, txclk;
 	wire		mdl_reset_request, mdl_phy_down;
@@ -108,17 +128,52 @@ module	sata_model (
 			txaxin_success, txaxin_failed;
 	wire	[31:0]	txaxin_data;
 
+	reg		clk_sync;
+	reg		[8:0] idle_cnt;
+
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Reset, tx clock, and setup
 	// {{{
-
 	initial txclk = 1'b0;
 	always
 		// Verilator lint_off BLKSEQ
 		#(TXCLK_PERIOD/2) txclk = !txclk;
 		// Verilator lint_on  BLKSEQ
+
+	// Reset, tx clock, and setup
+	// {{{
+	// initial idle_cnt = 0;
+	// always @(posedge txclk) begin
+	// 	if (i_rx_p !== 1'bX)
+	// 		idle_cnt <= 0;
+	// 	else
+	// 		idle_cnt <= idle_cnt + 1;
+	// end
+
+	// initial clk_sync = 1'b0;
+	// always @(*) begin
+	// 	if (i_phy_ready) begin
+	// 		if ((i_rx_p !== i_rx_n) || (o_tx_p !== o_tx_n))
+	// 			clk_sync <= 1'b1;
+	// 		else if(i_cominit_det || i_comwake_det)
+	// 			clk_sync <= 1'b0;
+	// 	end
+	// end
+
+	// initial txclk = 1'b1;
+	// always begin
+	// 	if (clk_sync) begin
+	// 		// Verilator lint_off BLKSEQ
+	// 		#(TXCLK_PERIOD/2) txclk = !txclk;
+	// 		// Verilator lint_on  BLKSEQ
+	// 	end else begin
+	// 		// #(TXCLK_PERIOD/2) txclk = !txclk;
+	// 		txclk = 1'b1;
+	// 		wait (clk_sync);
+	// 	end
+	// end
 
 	initial begin
 		mdl_reset <= 1'b1;
@@ -135,15 +190,16 @@ module	sata_model (
 
 	assign	txwclk = (tx_word_count > 19);
 
-
 	// COMWAKE, COMRESET, COMINIT, etc.
 	mdl_scomfsm
 		// Uses: mdl_srxcomsigs
 	u_comfsm (
 		// {{{
 		.i_txclk(txclk),
-		.i_reset(mdl_reset || mdl_reset_request),
+		.i_reset(mdl_reset),	// add || mdl_reset_request
 		.o_reset(mdl_phy_down),
+		.i_comfinish(i_comfinish),
+		.i_cominit_det(i_cominit_det), .i_comwake_det(i_comwake_det),
 		.i_rx_p(i_rx_p), .i_rx_n(i_rx_n),
 		.i_tx(tx_wire),
 		.o_tx_p(o_tx_p), .o_tx_n(o_tx_n)
@@ -156,26 +212,26 @@ module	sata_model (
 	// RX Chain
 	// {{{
 
-	mdl_sbitsync
-	u_bitsync (
-		.i_reset(mdl_reset),
-		.i_rx_data((i_rx_p === 1'b1) && (i_rx_n === 1'b0)),
-		.o_rxclk(rxclk)
-	);
+	// mdl_sbitsync
+	// u_bitsync (
+	// 	.i_reset(mdl_reset),
+	// 	.i_rx_data((i_rx_p === 1'b1) && (i_rx_n === 1'b0)),
+	// 	.o_rxclk(rxclk)
+	// );
 
-	mdl_salign
-		// Uses:
-		//	mdl_s10b8bw which uses mdl_s10b8b
-	u_rxalign (
-		// {{{
-		.i_clk(rxclk),
-		.i_reset(mdl_reset),
-		.i_rx_p((i_rx_p === 1'b1) && (i_rx_n === 1'b0)),
-		.o_valid(rx_valid),
-		.o_keyword(rx_ctrl),
-		.o_data(rx_data)
-		// }}}
-	);
+	// mdl_salign
+	// 	// Uses:
+	// 	//	mdl_s10b8bw which uses mdl_s10b8b
+	// u_rxalign (
+	// 	// {{{
+	// 	.i_clk(rxclk),
+	// 	.i_reset(mdl_reset),
+	// 	.i_rx_p((i_rx_p === 1'b1) && (i_rx_n === 1'b0)),
+	// 	.o_valid(rx_valid),
+	// 	.o_keyword(rx_ctrl),
+	// 	.o_data(rx_data)
+	// 	// }}}
+	// );
 
 	// }}}
 	////////////////////////////////////////////////////////////////////////
@@ -186,20 +242,20 @@ module	sata_model (
 	//
 	//
 
-	mdl_txword
-	u_txword (
-		// {{{
-		.i_clk(txclk),
-		.i_reset(mdl_reset || mdl_phy_down),
-		.i_cfg_speed(2'b0),
-		.S_VALID(linktx_valid),
-		.S_READY(linktx_ready),
-		.S_CTRL( linktx_ctrl),
-		.S_DATA( linktx_data),
-		//
-		.o_tx(tx_wire)
-		// }}}
-	);
+	// mdl_txword
+	// u_txword (
+	// 	// {{{
+	// 	.i_clk(txclk),
+	// 	.i_reset(mdl_reset || mdl_phy_down),
+	// 	.i_cfg_speed(2'b0),
+	// 	.S_VALID(linktx_valid),
+	// 	.S_READY(linktx_ready),
+	// 	.S_CTRL( linktx_ctrl),
+	// 	.S_DATA( linktx_data),
+	// 	//
+	// 	.o_tx(tx_wire)
+	// 	// }}}
+	// );
 
 	// }}}
 	////////////////////////////////////////////////////////////////////////
@@ -210,42 +266,58 @@ module	sata_model (
 	//
 	//
 
-	sata_link
-	u_mdllink (
-		.i_tx_clk(txwclk),
-		.i_reset(mdl_reset || mdl_phy_down),
-		.i_cfg_continue_en(1'b1),
-		.i_cfg_scrambler_en(1'b1),
-		.i_cfg_crc_en(1'b1),
-		//
-		.s_valid(  txaxin_valid),
-		.s_ready(  txaxin_ready),
-		.s_data(   txaxin_data),
-		.s_last(   txaxin_last),
-		.s_success(txaxin_success),
-		.s_failed( txaxin_failed),
-		//
-		.m_valid(rxaxin_valid),
-		// .m_ready(  rxaxin_ready),
-		.m_full( rxaxin_full),
-		.m_empty(rxaxin_empty),
-		.m_data( rxaxin_data),
-		.m_last( rxaxin_last),
-		.m_abort(rxaxin_abort),
-		//
-		.o_link_error(mdl_link_err),
-		.o_link_ready(mdl_link_ready),
-		//
-		.i_rx_clk(rxclk),
-		.i_rx_valid(rx_valid),
-		.i_rx_data({ rx_ctrl, rx_data }),
-		//
-		.o_phy_primitive(linktx_ctrl),
-		.o_phy_data(linktx_data),
-		.o_phy_reset(mdl_reset_request),
-		.i_phy_ready(linktx_ready)
-	);
+	// sata_link
+	// u_mdllink (
+	// 	.i_tx_clk(txwclk),
+	// 	.i_reset(mdl_reset || mdl_phy_down),
+	// 	.i_cfg_continue_en(1'b1),
+	// 	.i_cfg_scrambler_en(1'b1),
+	// 	.i_cfg_crc_en(1'b1),
+	// 	//
+	// 	.s_valid(  txaxin_valid),
+	// 	.s_ready(  txaxin_ready),
+	// 	.s_data(   txaxin_data),
+	// 	.s_last(   txaxin_last),
+	// 	.s_success(txaxin_success),
+	// 	.s_failed( txaxin_failed),
+	// 	//
+	// 	.m_valid(rxaxin_valid),
+	// 	// .m_ready(  rxaxin_ready),
+	// 	.m_full( rxaxin_full),
+	// 	.m_empty(rxaxin_empty),
+	// 	.m_data( rxaxin_data),
+	// 	.m_last( rxaxin_last),
+	// 	.m_abort(rxaxin_abort),
+	// 	//
+	// 	.o_link_error(mdl_link_err),
+	// 	.o_link_ready(mdl_link_ready),
+	// 	//
+	// 	.i_rx_clk(rxclk),
+	// 	.i_rx_valid(rx_valid),
+	// 	.i_rx_data({ rx_ctrl, rx_data }),
+	// 	//
+	// 	.o_phy_primitive(linktx_ctrl),
+	// 	.o_phy_data(linktx_data),
+	// 	.o_phy_reset(mdl_reset_request),
+	// 	.i_phy_ready(linktx_ready)
+	// );
 	// }}}
+
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Transport Layer
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
+
+	// }}}
+
+	// initial begin
+    // 	$dumpfile("waveform.vcd");
+    // 	$dumpvars(0, sata_model);
+    // end
 
 	assign	txaxin_valid = 1'b0;
 	assign	txaxin_data  = 32'h0;

@@ -44,7 +44,9 @@ module	mdl_scomfsm #(
 	) (
 		// {{{
 		input	wire	i_txclk, i_reset,
-		output	reg	o_reset,
+		output	reg		o_reset,
+		input	wire	i_comfinish,
+		input	wire	i_cominit_det, i_comwake_det,
 		input	wire	i_rx_p, i_rx_n,
 		input	wire	i_tx,
 		output	wire	o_tx_p, o_tx_n
@@ -79,11 +81,27 @@ module	mdl_scomfsm #(
 	reg		ck_comreset, ck_comwake;
 	// }}}
 
+	// OOB
+	// {{{
+	mdl_oob u_oob (
+		.i_clk(i_txclk),
+		.i_rst(i_reset),
+    	.i_comfinish(i_comfinish),
+		.i_comreset_det(w_comreset),
+		.i_comwake_dev(w_comwake),
+		.i_comwake_det(i_comwake_det),
+	    .o_tx_p(o_tx_p),
+        .o_tx_n(o_tx_n)
+    );
+	// }}}
+	
 	mdl_srxcomsigs #(
 		.OVERSAMPLE(4), .CLOCK_SYM_NS(CLOCK_SYM_NS)
 	) u_comdet (
+		.i_clk(i_txclk),
 		.i_reset(i_reset),
 		.i_rx_p(i_rx_p), .i_rx_n(i_rx_n),
+		.i_cominit_det(i_cominit_det), .i_comwake_det(i_comwake_det),
 		.o_comwake(w_comwake), .o_comreset(w_comreset)
 	);
 
@@ -228,6 +246,6 @@ module	mdl_scomfsm #(
 	default: begin end
 	endcase
 
-	assign	o_tx_p = (r_idle) ? 1'bz :  r_tx;
-	assign	o_tx_n = (r_idle) ? 1'bz : !r_tx;
+	// assign	o_tx_p = (r_idle) ? 1'bz :  r_tx;
+	// assign	o_tx_n = (r_idle) ? 1'bz : !r_tx;
 endmodule

@@ -48,7 +48,7 @@
 // }}}
 module	sata_phy #(
 		// {{{
-		parameter [0:0]	OPT_LITTLE_ENDIAN = 1'b0,
+		parameter [0:0]	OPT_LITTLE_ENDIAN = 1'b1,
 		parameter [0:0]	OPT_RXBUFFER = 1'b1,
 		parameter [0:0]	OPT_TXBUFFER = 1'b1,
 		parameter [0:0]	OPT_AUTO_ALIGN = 1'b1,	// Detect & ALIGN_p
@@ -172,12 +172,12 @@ module	sata_phy #(
 	end else begin
 		qpll_reset <= (qpll_reset_count > 1);
 		if (qpll_reset > 0)
-			qpll_reset <= qpll_reset - 1;
+			qpll_reset_count <= qpll_reset_count - 1;
 	end
 	// }}}
 
 	sata_phyinit #(
-		.OPT_WAIT_ON_ALIGN(1'b1)
+		.OPT_WAIT_ON_ALIGN(1'b0)
 	) rx_init (
 		// {{{
 		.i_clk(i_wb_clk),
@@ -230,7 +230,8 @@ module	sata_phy #(
 		.OPT_WAIT_ON_ALIGN(1'b0)
 	) tx_init (
 		// {{{
-		.i_clk(i_wb_clk), .i_reset(i_reset || !qpll_lock),
+		.i_clk(i_wb_clk),
+		.i_reset(i_reset || !qpll_lock),
 		.i_power_down(1'b0), // power_down),
 		.o_pll_reset(tx_pll_reset),
 		.i_pll_locked(qpll_lock),
@@ -244,7 +245,7 @@ module	sata_phy #(
 	);
 
 	assign	o_init_err = rx_watchdog_err || tx_watchdog_err;
-	assign	o_ready = o_tx_ready; // rx_ready && o_tx_ready;
+	assign	o_ready = rx_ready && o_tx_ready;
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -940,7 +941,7 @@ module	sata_phy #(
 		// }}}
 		// RX Clock data recovery
 		// {{{
-		.RXCDRHOLD(rx_cdr_hold),
+		.RXCDRHOLD(i_rx_cdrhold),	// i_rx_cdrhold
 		.RXCDROVRDEN(1'b0),
 		.RXCDRRESETRSV(1'b0),
 		.RXRATE((SATA_GEN==3) ? 3'd2 : (SATA_GEN==2) ? 3'd3 : 3'd4),
@@ -1157,7 +1158,7 @@ module	sata_phy #(
 
 	// }}}
 
-	assign	o_rx_primitive = rx_char_is_k[0];
+	assign	o_rx_primitive = rx_char_is_k[3];
 	assign	o_rx_data = OPT_LITTLE_ENDIAN ? raw_rx_data[31:0]
 			: { raw_rx_data[7:0], raw_rx_data[15:8],
 				raw_rx_data[23:16], raw_rx_data[31:24] };

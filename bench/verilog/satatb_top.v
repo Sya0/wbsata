@@ -191,6 +191,7 @@ module	satatb_top;
 
 	wire		sata_rxphy_clk, sata_rxphy_valid;
 	wire	[31:0]	sata_rxphy_data;
+
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -274,6 +275,7 @@ module	satatb_top;
 		wire	[6:0]	zdbg_addr;
 		wire	[31:0]	zdbg_data, zdbg_idata;
 		wire	[3:0]	zdbg_sel;
+		wire    zip_halted;
 		// }}}
 
 		wbdown #(
@@ -298,7 +300,6 @@ module	satatb_top;
 				.i_serr(zdbg_err)
 			// }}}
 		);
-
 		
 		zipsystem #(
 			// {{{
@@ -465,7 +466,7 @@ module	satatb_top;
 		// {{{
 		.i_rxphy_clk(sata_rxphy_clk),
 		.i_rxphy_valid(sata_rxphy_valid),
-		.i_rxphy_data(sata_rxphy_data),
+		.i_rxphy_data({ 1'b1, sata_rxphy_data }),
 
 		.i_txphy_clk(sata_txphy_clk),
 		.i_txphy_ready(sata_txphy_ready),
@@ -565,12 +566,15 @@ module	satatb_top;
 	// SATA Device Verilog TB model
 	// {{{
 
-	localparam [0:0]	OPT_ATTACH_SATA_MODEL = 1'b0;
+	localparam [0:0]	OPT_ATTACH_SATA_MODEL = 1'b1;
 
 	generate if (OPT_ATTACH_SATA_MODEL)
 	begin : GEN_SATA_MODEL
 		sata_model
 		u_sata_model (
+			.i_phy_ready(sata_phy_ready),
+			.i_comfinish(sata_txphy_comfinish),
+			.i_cominit_det(sata_rxphy_cominit), .i_comwake_det(sata_rxphy_comwake),
 			.i_rx_p(sata_tx_p), .i_rx_n(sata_tx_n),
 			.o_tx_p(sata_rx_p), .o_tx_n(sata_rx_n)
 		);

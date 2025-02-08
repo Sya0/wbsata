@@ -350,21 +350,10 @@ module	sata_reset #(
 				fsm_state <= HR_AWAIT_RXCLRINIT;
 			end
 			// }}}
-		// HR_SEND_ALIGN: begin
-		// 	// {{{
-		// 	// The last step in the handshake is to lock to an
-		// 	// align primitive.  We'll wait here until we lock,
-		// 	// before moving on.
-		// 	o_tx_elecidle <= 1'b0;
-		// 	o_rx_cdrhold  <= 1'b0;
-		// 	{ o_phy_primitive, o_phy_data } <= P_ALIGN;
-		// 	if (rx_sync)
-		// 		fsm_state <= HR_READY;
-		// 	end
-			// }}}
 		HR_READY: begin
 			// {{{
 			o_link_up <= 1'b1;
+			o_tx_elecidle <= 1'b0;
 			{ o_phy_primitive, o_phy_data }
 					<= { o_phy_primitive, o_phy_data };
 			if (o_tx_ready)

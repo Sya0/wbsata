@@ -370,7 +370,9 @@ module	satatrn_fsm #(
 		return_to_idle <= 1'b0;
 		r_icc      <= 0;
 		r_port     <= 0;
+		r_control	<= 0;
 		r_dma_fail  <= 0;
+		last_fis	<= 0;
 		// }}}
 	end else if (soft_reset)
 	begin
@@ -393,7 +395,9 @@ module	satatrn_fsm #(
 		return_to_idle <= 1'b0;
 		r_icc      <= 0;
 		r_port     <= 0;
+		r_control	<= 0;
 		r_dma_fail  <= 0;
+		last_fis	<= 0;
 		// }}}
 	end else if (!i_link_up || i_tran_err)
 	begin
@@ -699,9 +703,10 @@ module	satatrn_fsm #(
 	reg	[1:0]	m_count;
 
 	always @(posedge i_clk)
-	if (i_reset || o_tran_req || o_tran_src == SRC_REGS)
-		{ m_valid, m_last, m_count } <= 0;
-	else if (!m_valid || m_ready)
+	if (i_reset || o_tran_req || o_tran_src == SRC_REGS) begin
+		{ m_valid, m_count } <= 0;
+		m_last <= i_reset;
+	end else if (!m_valid || m_ready)
 	begin
 		m_valid <= !m_last;
 		if (!m_last)

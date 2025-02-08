@@ -49,7 +49,8 @@ module	mdl_scomfsm #(
 		input	wire	i_cominit_det, i_comwake_det,
 		input	wire	i_rx_p, i_rx_n,
 		input	wire	i_tx,
-		output	wire	o_tx_p, o_tx_n
+		output	wire	o_tx_p, o_tx_n,
+		input	wire	i_link_up
 		// }}}
 	);
 
@@ -91,7 +92,8 @@ module	mdl_scomfsm #(
 		.i_comwake_dev(w_comwake),
 		.i_comwake_det(i_comwake_det),
 	    .o_tx_p(o_tx_p),
-        .o_tx_n(o_tx_n)
+        .o_tx_n(o_tx_n),
+		.i_link_up(i_link_up)
     );
 	// }}}
 	

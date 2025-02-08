@@ -598,7 +598,7 @@ module	sata_transport #(
 	wire	unused;
 	assign	unused = &{ 1'b0,
 			// FIX THESE!  These shouldn't be ignored
-			i_tran_success, i_tran_failed, i_link_ready,
+			i_tran_success, i_tran_failed,
 			//
 			// These are expected to be ignored
 			ign_datarx_ready, ign_txgear_bytes,

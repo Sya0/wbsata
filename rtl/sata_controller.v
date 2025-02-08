@@ -101,7 +101,8 @@ module	sata_controller #(
 		input	wire		i_rxphy_cdrlock,
 		//
 		output	wire		o_phy_reset,
-		input	wire		i_phy_ready
+		input	wire		i_phy_ready,
+		output	wire		o_lnk_up
 		// }}}
 		// }}}
 	);
@@ -133,6 +134,7 @@ module	sata_controller #(
 	assign	cfg_scrambler_en = 1'b1;
 	assign	cfg_crc_en       = 1'b1;
 	assign	o_phy_reset	= i_reset;
+	assign	o_lnk_up	= comlink_up;
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Transport layer

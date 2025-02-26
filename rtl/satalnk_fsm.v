@@ -120,12 +120,10 @@ module	satalnk_fsm (
 			// L_NOPMNAK;
 	// }}}
 
-	reg	r_ready;
-	// }}}
-
 	// Continue primitives will have been removed on entry
 
 	// Link state machine
+	reg	r_ready;
 	wire		i_rx_primitive;
 	reg	[4:0]	link_state;
 
@@ -178,8 +176,8 @@ module	satalnk_fsm (
 			// }}}
 		L_IDLE: begin
 			// {{{
-			if (i_rx_valid&& i_rx_data == P_X_RDY	
-					|| i_rx_data == P_SYNC)
+			if (i_rx_valid && (i_rx_data == P_X_RDY
+					|| i_rx_data == P_SYNC))
 				o_ready <= 1'b1;
 
 			if (m_phy_ready)

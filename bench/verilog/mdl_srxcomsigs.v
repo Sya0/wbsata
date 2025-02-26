@@ -215,11 +215,6 @@ module mdl_srxcomsigs #(
 				oob_count 	<= 0;
 				o_comreset  <= 1'b1;
 			end
-			// Verilator lint_off WIDTH
-			// if ((idle_timeout >= COMRESET_MAX)) begin
-				// Verilator lint_on  WIDTH
-			// 	oob_count   <= 0;
-			// end
 		end
 		FSM_HOSTINIT: begin
 			if (i_cominit_det)
@@ -232,16 +227,6 @@ module mdl_srxcomsigs #(
 				oob_count 	<= 0;
 				o_comwake   <= 1'b1;
 			end
-			// if (w_comwake && !oob_count[OOBMSB])
-			// 	oob_count <= oob_count + 1;
-			// // Verilator lint_off WIDTH
-			// if (valid_symbol && !idle && (idle_timeout < WAKEIDLE_MIN
-			// 		|| idle_timeout >= WAKEIDLE_MAX))
-			// 	// Verilator lint_on  WIDTH
-			// begin
-			// 	reset_state <= FSM_RELEASE;
-			// 	o_comwake   <= 0;
-			// end 
 		end
 		FSM_HOSTWAKE: begin
 			if (i_comwake_det)

@@ -47,39 +47,32 @@ module	mdl_scomfsm #(
 		output	reg		o_reset,
 		input	wire	i_comfinish,
 		input	wire	i_cominit_det, i_comwake_det,
+		input	wire	i_oob_done, i_link_layer_up,
 		input	wire	i_rx_p, i_rx_n,
 		input	wire	i_tx,
-		output	wire	o_tx_p, o_tx_n,
-		input	wire	i_link_up
+		output	wire	o_tx_p, o_tx_n
 		// }}}
 	);
 
 	// Local decalarations
 	// {{{
-	localparam [9:0]	D24_3 = { 6'b110011, 4'b0011 };
-	localparam [39:0] COM_SEQ = { D24_3, ~D24_3, D24_3, ~D24_3 };
-	localparam	NUM_COMINIT = 3,
-			NUM_COMWAKE = 6;
-	localparam	COMINIT_IDLES = $rtoi(320   / CLOCK_SYM_NS),
-			COMWAKE_IDLES = $rtoi(106.7 / CLOCK_SYM_NS);
-	localparam	IDLE_WIDTH = $clog2(COMINIT_IDLES+1);
+	localparam	[0:0]	OOB = 1'h0,
+						ACTIVE_TRANSACTION = 1'h1;
 
-	localparam	[2:0]	CLEAR_RESET = 3'h0,
-				SEND_INIT = 3'h1,
-				WAIT_WAKE = 3'h2,
-				SEND_WAKE = 3'h3,
-				ACTIVE    = 3'h4;
+	localparam P_BITS = 40;
+    localparam [(P_BITS/4)-1:0] D21_4 = 10'b1010101101;
+    localparam [(P_BITS/4)-1:0] K28_3 = 10'b0011110011;
+    localparam [(P_BITS/4)-1:0] D21_5 = 10'b1010101010;
+    
+    localparam [P_BITS-1:0] SYNC_P = { D21_5, D21_5, D21_4, K28_3 };
 
-	reg	[2:0]	fsm_state;
-	reg		r_tx, r_idle;
-	reg	[5:0]	seq_count;
-	reg	[39:0]	sreg;
-	reg	[$clog2(NUM_COMWAKE)-1:0]	burst_count;
-	reg	[1:0]	subburst_count;
-	reg	[IDLE_WIDTH-1:0] idle_count;
-	wire		w_comwake, w_comreset;
-	reg	[2:0]	pipe_comreset, pipe_comwake;
-	reg		ck_comreset, ck_comwake;
+	wire	oob_tx_p, oob_tx_n;
+	reg	[0:0]	fsm_state;
+	reg		r_tx, r_oob;
+	wire	w_comwake, w_comreset;
+	wire [39:0] oob_reg, link_reg;
+	wire 	oob_sync_true, link_sync_true;
+	wire	done;
 	// }}}
 
 	// OOB
@@ -91,9 +84,11 @@ module	mdl_scomfsm #(
 		.i_comreset_det(w_comreset),
 		.i_comwake_dev(w_comwake),
 		.i_comwake_det(i_comwake_det),
-	    .o_tx_p(o_tx_p),
-        .o_tx_n(o_tx_n),
-		.i_link_up(i_link_up)
+		.i_oob_done(i_oob_done),
+		.i_link_layer_up(i_link_layer_up),
+		.o_done(done),
+	    .o_tx_p(oob_tx_p),
+        .o_tx_n(oob_tx_n)
     );
 	// }}}
 	
@@ -107,147 +102,42 @@ module	mdl_scomfsm #(
 		.o_comwake(w_comwake), .o_comreset(w_comreset)
 	);
 
-	always @(posedge i_txclk)
-		{ ck_comreset, pipe_comreset } <= { pipe_comreset, w_comreset };
-
-	always @(posedge i_txclk)
-		{ ck_comwake, pipe_comwake } <= { pipe_comwake, w_comwake };
-
-	initial begin
-		fsm_state = CLEAR_RESET;
-		r_tx = 1'b0;
-		seq_count = 40;
-		sreg = COM_SEQ;
-		subburst_count = 0;
-		burst_count = 0;
-		idle_count = COMINIT_IDLES[IDLE_WIDTH-1:0];
-	end
-
-	always @(posedge i_txclk)
-	if (i_reset || ck_comreset)
+	always @(posedge i_txclk or i_reset)
+	if (i_reset)
 	begin
-		fsm_state <= CLEAR_RESET;
-		r_tx <= 1'b0;
-		sreg <= COM_SEQ;
-		subburst_count <= 0;
-		burst_count <= 0;
-		idle_count <= COMINIT_IDLES[IDLE_WIDTH-1:0];
+		fsm_state <= OOB;
+		r_tx <= 1'bX;
+		r_oob <= 1'b1;
 		o_reset <= 1'b1;
 	end else case(fsm_state)
-	CLEAR_RESET: begin
+		OOB: begin
 		// {{{
-		r_tx <= 0;
-		r_idle <= 1;
-		sreg <= COM_SEQ;
-		seq_count <= 0;	// Start in idle
-		subburst_count <= 0;
-		burst_count <= 0;
-		o_reset <= 1'b1;
-		// if (!ck_comreset)
-			fsm_state <= SEND_INIT;
-		end
-		// }}}
-	SEND_INIT: begin
-		// {{{
-		o_reset <= 1'b1;
-		if (seq_count > 0)
-		begin
-			seq_count <= seq_count - 1;
-			r_tx <= sreg[39];
-			r_idle <= 1'b0;
-			sreg <= { sreg[38:0], 1'b0 };
-			idle_count <= COMINIT_IDLES[IDLE_WIDTH-1:0];
-
-			if (seq_count == 1)
-			begin
-				subburst_count <= subburst_count + 1;
-				sreg <= COM_SEQ;
-				if (subburst_count < 3)
-					seq_count <= 40;
-				else begin
-					burst_count <= burst_count + 1;
-					if (burst_count >= NUM_COMINIT-1)
-						fsm_state <= WAIT_WAKE;
-				end
+			r_tx <= 1'bX;
+			r_oob <= 1'b1;
+			o_reset <= 1'b1;
+			if (i_oob_done) begin
+				fsm_state <= ACTIVE_TRANSACTION;
+				r_tx <= i_tx;
+				r_oob <= 1'b0;
+				o_reset <= 1'b0;
 			end
-		end else begin
-			r_idle <= 1;
-			seq_count <= 0;
-			sreg <= COM_SEQ;
-			r_tx <= 1'b0;
-			if (idle_count > 0)
-				idle_count <= idle_count - 1;
-			else
-				seq_count <= 40;
-		end end
-		// }}}
-	WAIT_WAKE: begin
-		// {{{
-		o_reset <= 1'b1;
-		r_tx <= 0;
-		r_idle <= 1;
-		idle_count <= COMWAKE_IDLES[IDLE_WIDTH-1:0];
-		seq_count  <= 0;
-		subburst_count <= 0;
-		burst_count<= 0;
-		if (ck_comwake)
-			fsm_state <= SEND_WAKE;
 		end
-		// }}}
-	SEND_WAKE: begin
+		ACTIVE_TRANSACTION: begin
 		// {{{
-		o_reset <= 1'b1;
-
-		if (ck_comwake)
-		begin
-			r_tx <= 0;
-			r_idle <= 1'b1;
-			idle_count <= COMWAKE_IDLES[IDLE_WIDTH-1:0];
-			seq_count  <= 0;
-			subburst_count <= 0;
-			burst_count<= 0;
-		end else if (seq_count > 0)
-		begin
-			seq_count <= seq_count - 1;
-			r_tx <= sreg[39];
-			r_idle <= 1'b0;
-			sreg <= { sreg[38:0], 1'b0 };
-			idle_count <= COMWAKE_IDLES[IDLE_WIDTH-1:0];
-
-			if (seq_count == 1)
-			begin
-				subburst_count <= subburst_count + 1;
-				sreg <= COM_SEQ;
-				if (subburst_count < 3)
-					seq_count <= 40;
-				else begin
-					burst_count <= burst_count + 1;
-					if (burst_count >= NUM_COMWAKE-1)
-					begin
-						fsm_state <= ACTIVE;
-						o_reset <= 1'b0;
-					end
-				end
-			end
-		end else begin
-			seq_count <= 0;
-			sreg <= COM_SEQ;
-			r_tx <= 1'b0;
-			r_idle <= 1'b1;
-			if (idle_count > 0)
-				idle_count <= idle_count - 1;
-			else
-				seq_count <= 40;
-		end end
+			r_tx <= i_tx;
+			r_oob <= 1'b0;
+			o_reset <= 1'b0;
 		// }}}
-	ACTIVE: begin
-		o_reset <= 1'b1;
-		r_tx <= i_tx;
-		r_idle <= 1'b0;
 		end
-	default: begin end
 	endcase
 
-	// assign	o_tx_p = (r_idle) ? 1'bz :  r_tx;
-	// assign	o_tx_n = (r_idle) ? 1'bz : !r_tx;
+	assign oob_reg  = { oob_reg[38:0], oob_tx_p };
+	assign link_reg = { link_reg[38:0], r_tx };
+
+	assign	oob_sync_true = (oob_reg == SYNC_P) ? 1 : 0;
+	assign	link_sync_true = (link_reg == SYNC_P) ? 1 : 0;
+
+	assign	o_tx_p = (r_oob) ? oob_tx_p :  r_tx;
+	assign	o_tx_n = (r_oob) ? oob_tx_n : !r_tx;
+
 endmodule

@@ -359,6 +359,7 @@ module	satatrn_fsm #(
 		o_mm2s_request <= 1'b0;
 		o_mm2s_addr    <= 0;
 		//
+		o_tran_req <= 0;
 		r_dma_address <= 0;
 		r_features <= 0;
 		r_command  <= 0;
@@ -384,6 +385,7 @@ module	satatrn_fsm #(
 		o_mm2s_request <= 1'b0;
 		o_mm2s_addr    <= 0;
 		//
+		o_tran_req <= 0;
 		r_dma_address <= 0;
 		r_features <= 0;
 		r_command  <= 0;
@@ -541,7 +543,7 @@ module	satatrn_fsm #(
 			// output	reg			o_tran_src,
 			// output	reg	[11:0]		o_tran_len,
 			//
-			if (o_tran_req && !i_tran_busy)
+			if (o_tran_req)
 			begin
 				o_tran_req <= 0;
 				case(cmd_type)
@@ -676,6 +678,7 @@ module	satatrn_fsm #(
 			// }}}
 		FSM_WAIT_REG: begin
 			// {{{
+			o_tran_src <= SRC_MM2S;
 			if (s_pkt_valid && s_sop
 					&& s_data[7:0] == FIS_REG_TO_HOST)
 			begin
@@ -717,9 +720,12 @@ module	satatrn_fsm #(
 		end
 	end
 
+	// wire [1:0] case_cnt;
+	// assign	case_cnt = m_count + ((m_valid && m_ready) ? 1:0);
+
 	always @(posedge i_clk)
 	if (!m_valid || m_ready)
-	case(m_count + ((m_valid && m_ready) ? 1:0))
+	case(m_count)
 	0: m_data <= { FIS_REG_TO_DEV, !SRST,
 				3'h0, r_port, r_command, r_features[7:0] };
 	1: m_data <= { r_lba[7:0],  r_lba[15:8],  r_lba[23:16],r_device };

@@ -151,13 +151,12 @@ module	sata_link #(
 		.i_wclk(i_rx_clk), .i_wr_reset_n(rx_reset_n),
 		//
 		.i_wr(rx_valid_rxck), .i_wr_data(rx_data_rxck),
-			.o_wr_full(ign_rxfifo_full),
+		.o_wr_full(ign_rxfifo_full),
 		//
 		//
 		.i_rclk(i_tx_clk), .i_rd_reset_n(!i_reset),
-
 		.i_rd(1'b1),
-			.o_rd_data(rx_data), .o_rd_empty(rd_fifo_empty)
+		.o_rd_data(rx_data), .o_rd_empty(rd_fifo_empty)
 	);
 
 	assign	rx_valid = !rd_fifo_empty;

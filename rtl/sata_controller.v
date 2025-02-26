@@ -102,7 +102,7 @@ module	sata_controller #(
 		//
 		output	wire		o_phy_reset,
 		input	wire		i_phy_ready,
-		output	wire		o_lnk_up
+		output	wire		o_lnk_up, o_lnk_ready
 		// }}}
 		// }}}
 	);
@@ -135,6 +135,7 @@ module	sata_controller #(
 	assign	cfg_crc_en       = 1'b1;
 	assign	o_phy_reset	= i_reset;
 	assign	o_lnk_up	= comlink_up;
+	assign	o_lnk_ready = link_ready;
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Transport layer

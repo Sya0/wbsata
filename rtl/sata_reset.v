@@ -336,7 +336,7 @@ module	sata_reset #(
 			// align primitive.  We'll wait here until we lock,
 			// before moving on.
 			o_rx_cdrhold  <= 1'b0;
-			{ o_phy_primitive, o_phy_data } <= 32'h4A4A4A4A;
+			{ o_phy_primitive, o_phy_data } <= D10_2;
 			if (!ck_rx_elecidle) begin
 				o_tx_elecidle <= 1'b0;
 			end

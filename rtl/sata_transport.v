@@ -196,11 +196,11 @@ module	sata_transport #(
 	// Reset CDC
 	// {{{
 
-	always @(posedge i_phy_clk or posedge i_reset)
+	always @(posedge i_phy_clk or i_reset)	// I made this change for simulation
 	if (!i_reset)
 		{ phy_reset_n, phy_reset_xpipe } <= -1;
 	else
-		{ phy_reset_n, phy_reset_xpipe } <= { phy_reset_xpipe,!i_reset};
+		{ phy_reset_n, phy_reset_xpipe } <= 0;
 
 	assign	rxdma_reset = !(s2mm_core_request || s2mm_core_busy);
 	always @(posedge i_phy_clk)
@@ -225,7 +225,7 @@ module	sata_transport #(
 	u_rxregfis(
 		// {{{
 		.i_clk(i_clk), .i_reset(i_reset), .i_phy_clk(i_phy_clk),
-			.i_phy_reset_n(phy_reset_n), .i_link_err(i_link_err),
+		.i_phy_reset_n(phy_reset_n), .i_link_err(i_link_err),
 		//
 		.i_valid(i_tran_valid),
 		.i_data(i_tran_data),

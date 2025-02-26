@@ -1040,8 +1040,7 @@ module	sata_phy #(
 		// {{{
 		.TXCHARDISPMODE(8'h0),	// When 8B10B disabled
 		.TXCHARDISPVAL(8'h0),	// When 8B10B disabled
-		.TXDATA(OPT_LITTLE_ENDIAN ? { 32'h0, i_tx_data }
-			: { 32'h0,
+		.TXDATA({ 32'h0,
 			i_tx_data[ 7: 0], i_tx_data[15: 8],
 			i_tx_data[23:16], i_tx_data[31:24]
 			}),

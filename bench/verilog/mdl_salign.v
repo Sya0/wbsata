@@ -62,7 +62,7 @@ module	mdl_salign // #()
 	// }}}
 
 	initial	ishift_reg = 0;
-	always @(posedge i_clk)
+	always @(posedge i_clk or i_reset)
 	if (i_reset)
 		ishift_reg <= 0;
 	else
@@ -85,13 +85,13 @@ module	mdl_salign // #()
 	);
 
 	initial	pre_sync  = 0;
-	always @(posedge i_clk)
+	always @(posedge i_clk or i_reset)
 	if (i_reset)
-		pre_sync  <= 0;
+		pre_sync <= 0;
 	else
 		pre_sync <= { pre_sync[38:0], (dcd_ctrl && !dcd_illegal) };
 
-	always @(posedge i_clk)
+	always @(posedge i_clk or i_reset)
 	if (i_reset)
 	begin
 		syncd  <= 0;
@@ -108,22 +108,22 @@ module	mdl_salign // #()
 		offset <= offset + 1;
 		if (offset >= 39)
 			offset <= 0;
-		if (offset == 39 && dcd_illegal)
+		if (offset == 0 && dcd_illegal)
 			syncd  <= 0;
 	end
 
-	always @(posedge i_clk)
-	if (!i_reset)
+	always @(posedge i_clk or i_reset)
+	if (i_reset)
 		o_valid <= 0;
 	else
-		o_valid <= (syncd && offset == 6'd39 && !dcd_illegal);
+		o_valid <= (syncd && offset == 0 && !dcd_illegal);
 
-	always @(posedge i_clk)
-	if (!i_reset)
+	always @(posedge i_clk or i_reset)
+	if (i_reset)
 		{ o_keyword, o_data } <= 0;
 	else if (!syncd)
 		{ o_keyword, o_data } <= 0;
-	else if (syncd && offset == 6'd39)
+	else if (syncd && offset == 0)
 		{ o_keyword, o_data } <= { dcd_ctrl, dcd_data };
 
 	// Keep Verilator happy

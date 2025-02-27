@@ -82,7 +82,7 @@ module	sata_transport #(
 		//
 		input	wire		i_dma_stall,
 		input	wire		i_dma_ack,
-		input	wire	[31:0]	i_dma_data,
+		input	wire [DW-1:0]	i_dma_data,
 		input	wire		i_dma_err,
 		// }}}
 		output	wire		o_int,
@@ -196,11 +196,11 @@ module	sata_transport #(
 	// Reset CDC
 	// {{{
 
-	always @(posedge i_phy_clk or i_reset)	// I made this change for simulation
-	if (!i_reset)
+	always @(posedge i_phy_clk or posedge i_reset)
+	if (i_reset)
 		{ phy_reset_n, phy_reset_xpipe } <= -1;
 	else
-		{ phy_reset_n, phy_reset_xpipe } <= 0;
+		{ phy_reset_n, phy_reset_xpipe } <= { phy_reset_xpipe, 1'b0 };
 
 	assign	rxdma_reset = !(s2mm_core_request || s2mm_core_busy);
 	always @(posedge i_phy_clk)
@@ -605,6 +605,11 @@ module	sata_transport #(
 			ign_mm2sgear_bytes_msb, ign_rxgear_bytes_msb,
 			ign_txfifo_fill, ign_rxfifo_fill, ign_s2mm_data
 			};
+	generate if (DW != 32)
+	begin : UNUSED_DW
+		wire	unused_dw;
+		assign	unused_dw = &{ 1'b0, txgear_data[DW-33:0] };
+	end endgenerate
 	// Verilator lint_on  UNUSED
 	// }}}
 endmodule

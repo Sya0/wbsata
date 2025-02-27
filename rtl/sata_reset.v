@@ -86,8 +86,8 @@ module	sata_reset #(
 				HR_AWAIT_RXCOMWAKE	= 4'h6,
 				HR_AWAIT_RXCLRWAKE	= 4'h7,
 				HR_AWAIT_ALIGN		= 4'h8,
-				HR_SEND_ALIGN		= 4'h9,
-				HR_READY			= 4'ha,
+				// HR_SEND_ALIGN	= 4'h9,
+				HR_READY		= 4'ha,
 				HR_AWAIT_RXCLRINIT	= 4'hb;
 
 	// Watchdog wait time is given in SATA chap 8, OOB and PHY POWER STATES.
@@ -109,7 +109,10 @@ module	sata_reset #(
 	reg	[3:0]	fsm_state;
 
 	wire		w_rx_align, rx_align;
+	// FIXME--these should be used for ... something
+	// Verilator lint_off UNUSED
 	wire		w_rx_sync, rx_sync;
+	// Verilator lint_on  UNUSED
 	reg				retry_timeout;
 	reg	[LGWATCHDOG-1:0]	watchdog_counter;
 
@@ -430,5 +433,13 @@ module	sata_reset #(
 		min_alignment_counter <= min_alignment_counter - 1;
 		check_alignment <= (min_alignment_counter <= 1);
 	end
+	// }}}
+
+	// Keep Verilator happy
+	// {{{
+	// Verilator lint_off UNUSED
+	wire	unused;
+	assign	unused = &{ 1'b0, ck_rx_cdrlock };
+	// Verilator lint_on  UNUSED
 	// }}}
 endmodule

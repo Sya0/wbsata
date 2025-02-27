@@ -135,7 +135,7 @@ module	satarx_scrambler #(
 	end
 	// }}}
 
-	function [32+16-1:0]	scramble(input [15:0] prior);
+	function automatic [32+16-1:0]	scramble(input [15:0] prior);
 		// {{{
 		integer	k;
 		reg	[15:0]	s_fill;

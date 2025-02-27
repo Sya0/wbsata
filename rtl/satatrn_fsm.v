@@ -468,7 +468,7 @@ module	satatrn_fsm #(
 					r_features[7:0] <= i_wb_data[31:24];
 				end
 			// }}}
-			1: begin	// ADDR_LBALO
+			ADDR_LBALO: begin	// ADDR_LBALO
 				// {{{
 				if (i_wb_sel[0])
 					r_lba[7:0] <= i_wb_data[7:0];
@@ -480,7 +480,7 @@ module	satatrn_fsm #(
 					r_device     <= i_wb_data[31:24];
 				end
 				// }}}
-			2: begin	// ADDR_LBAHI
+			ADDR_LBAHI: begin	// ADDR_LBAHI
 				// {{{
 				if (i_wb_sel[0])
 					r_lba[31:24] <= i_wb_data[7:0];
@@ -492,7 +492,7 @@ module	satatrn_fsm #(
 					r_features[15:8] <= i_wb_data[31:24];
 				end
 				// }}}
-			3: begin	// ADDR_COUNT
+			ADDR_COUNT: begin	// ADDR_COUNT
 				// {{{
 				if (i_wb_sel[0])
 					r_count[7:0]  <= i_wb_data[7:0];
@@ -504,16 +504,17 @@ module	satatrn_fsm #(
 					r_control     <= i_wb_data[31:24];
 				end
 				// }}}
-			6: begin // ADDR_LO, r_dma_address
+			ADDR_LO: begin // ADDR_LO, r_dma_address
 				// {{{
 				r_dma_address <= wide_address[ADDRESS_WIDTH-1:0];
 				end
 				// }}}
-			7: begin // ADDR_HI, r_dma_address
+			ADDR_HI: begin // ADDR_HI, r_dma_address
 				// {{{
 				r_dma_address <= wide_address[ADDRESS_WIDTH-1:0];
 				end
 				// }}}
+			default: begin end
 			endcase
 
 			if (known_cmd)
@@ -586,7 +587,9 @@ module	satatrn_fsm #(
 			if (i_s2mm_beat)
 			begin
 				// cmd_length  <= cmd_length - 4;
+				// Verilator lint_off WIDTH
 				o_s2mm_addr <= o_s2mm_addr   + $clog2(DW/8);
+				// Verilator lint_on  WIDTH
 			end
 			o_s2mm_request     <= 1;
 			if (s_pkt_valid && s_sop
@@ -746,15 +749,16 @@ module	satatrn_fsm #(
 	else begin
 		o_wb_data <= 32'h0;
 		case(i_wb_addr)
-		0: o_wb_data <= { r_features[7:0], r_command,
+		ADDR_CMD: o_wb_data <= { r_features[7:0], r_command,
 					r_int, r_dma_fail, 2'b0,
 					r_port, last_fis };
-		1: o_wb_data <= { r_device, r_lba[23:0] };
-		2: o_wb_data <= { r_features[15:8], r_lba[47:24] };
-		3: o_wb_data <= { r_control, r_icc, r_count };
+		ADDR_LBALO: o_wb_data <= { r_device, r_lba[23:0] };
+		ADDR_LBAHI: o_wb_data <= { r_features[15:8], r_lba[47:24] };
+		ADDR_COUNT: o_wb_data <= { r_control, r_icc, r_count };
 		// 5: o_wb_data <= { fsm_state, dma_err, i_link_up, o_link_reset }; // ...
-		6: o_wb_data <= wide_address[31:0];
-		7: o_wb_data <= wide_address[63:32];
+		ADDR_LO: o_wb_data <= wide_address[31:0];
+		ADDR_HI: o_wb_data <= wide_address[63:32];
+		default: begin end
 		endcase
 	end
 	// }}}

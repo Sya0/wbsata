@@ -82,7 +82,7 @@ module	sata_transport #(
 		//
 		input	wire		i_dma_stall,
 		input	wire		i_dma_ack,
-		input	wire	[31:0]	i_dma_data,
+		input	wire [DW-1:0]	i_dma_data,
 		input	wire		i_dma_err,
 		// }}}
 		output	wire		o_int,
@@ -144,7 +144,7 @@ module	sata_transport #(
 	wire		rxgear_valid, rxgear_ready, rxgear_last,
 			ign_rxgear_bytes_msb;
 	wire		txgear_valid, txgear_ready, txgear_last;
-	wire	[DW-1:0]	rxgear_data,  txgear_data;
+	wire	[DW-1:0]	rxgear_data, txgear_data;
 	wire [$clog2(DW/8)-1:0]	rxgear_bytes;
 	wire [$clog2(DW/8):0]	ign_txgear_bytes;
 
@@ -603,7 +603,8 @@ module	sata_transport #(
 			// These are expected to be ignored
 			ign_datarx_ready, ign_txgear_bytes,
 			ign_mm2sgear_bytes_msb, ign_rxgear_bytes_msb,
-			ign_txfifo_fill, ign_rxfifo_fill, ign_s2mm_data
+			ign_txfifo_fill, ign_rxfifo_fill, ign_s2mm_data,
+			txgear_data[DW-33:0]
 			};
 	// Verilator lint_on  UNUSED
 	// }}}

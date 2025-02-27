@@ -58,13 +58,13 @@ module	satatb_top;
 			MEM_ADDR  = { 1'b1,   {(ADDRESS_WIDTH-1){1'b0}} },
 			ZDBG_ADDR = { 4'b0100, {(ADDRESS_WIDTH-4){1'b0}} },
 			CONS_ADDR = { 4'b0011, {(ADDRESS_WIDTH-4){1'b0}} },
-			CTRL_ADDR = { 4'b0010, {(ADDRESS_WIDTH-4){1'b0}} },
+			SATA_ADDR = { 4'b0010, {(ADDRESS_WIDTH-4){1'b0}} },
 			DRP_ADDR  = { 4'b0001, {(ADDRESS_WIDTH-4){1'b0}} };
 	localparam [ADDRESS_WIDTH:0]
 			MEM_MASK  = { 2'b01,    {(ADDRESS_WIDTH-1){1'b0}} },
 			ZDBG_MASK = { 5'b11111, {(ADDRESS_WIDTH-4){1'b0}} },
 			CONS_MASK = { 5'b11111, {(ADDRESS_WIDTH-4){1'b0}} },
-			CTRL_MASK = { 5'b11111, {(ADDRESS_WIDTH-4){1'b0}} },
+			SATA_MASK = { 5'b11111, {(ADDRESS_WIDTH-4){1'b0}} },
 			DRP_MASK  = { 5'b11111, {(ADDRESS_WIDTH-4){1'b0}} };
 	// }}}
 	reg	wb_clk, wb_reset;
@@ -101,6 +101,8 @@ module	satatb_top;
 	wire	[AW-1:0]	zip_addr;
 	wire	[DW-1:0]	zip_data, zip_idata;
 	wire	[DW/8-1:0]	zip_sel;
+
+	wire			zip_halted;
 	// }}}
 
 	// Control connections
@@ -357,6 +359,8 @@ module	satatb_top;
 		assign	zdbgw_stall = 1'b0;
 		assign	zdbgw_ack   = zdbgw_stb && !zdbgw_stall;
 		assign	zdbgw_idata = {(DW){1'b0}};
+
+		assign	zip_halted = 1'b0;
 	end endgenerate
 
 	// }}}
@@ -371,13 +375,13 @@ module	satatb_top;
 		.SLAVE_ADDR({
 			{ 1'b1, ZDBG_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] },
 			{ 1'b1, CONS_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] },
-			{ 1'b1, CTRL_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] },
+			{ 1'b1, SATA_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] },
 			{ 1'b1, DRP_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] },
 			{ 1'b0, MEM_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] } }),
 		.SLAVE_MASK({
 			{ ZDBG_MASK[ADDRESS_WIDTH:$clog2(DW/8)] },
 			{ CONS_MASK[ADDRESS_WIDTH:$clog2(DW/8)] },
-			{ CTRL_MASK[ADDRESS_WIDTH:$clog2(DW/8)] },
+			{ SATA_MASK[ADDRESS_WIDTH:$clog2(DW/8)] },
 			{ DRP_MASK[ADDRESS_WIDTH:$clog2(DW/8)] },
 			{ MEM_MASK[ADDRESS_WIDTH:$clog2(DW/8)] } })
 		// }}}

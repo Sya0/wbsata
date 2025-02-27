@@ -95,7 +95,6 @@ module	sata_phy #(
 		output	wire		o_rx_cominit_detect,
 		output	wire		o_rx_comwake_detect,
 		input	wire		i_rx_cdrhold,
-		output	wire		o_rx_cdrlock,
 		// }}}
 		//
 		// COMFINISH
@@ -573,10 +572,10 @@ module	sata_phy #(
 		.ALIGN_COMMA_WORD(4),	// Comma appears on byte zero *ONLY*
 		// PCOMMA: The first comma pattern in a potential pair
 		.ALIGN_PCOMMA_DET(OPT_AUTO_ALIGN ? "TRUE" : "FALSE"),	// 1st comma in (potential) pair
-		.ALIGN_PCOMMA_VALUE(10'b01_0111_1100),	// 1st comma pattern
+		.ALIGN_PCOMMA_VALUE(10'b01_0111_1100),	// 1st comma pattern (K28.5)
 		// MCOMMA: The second comma pattern in a potential pair
-		.ALIGN_MCOMMA_DET(OPT_AUTO_ALIGN ? "TRUE" : "FALSE"),	// 2nd comma in potential pair
-		.ALIGN_MCOMMA_VALUE(10'b10_1000_0011),
+		.ALIGN_MCOMMA_DET("FALSE"), // OPT_AUTO_ALIGN ? "TRUE" : "FALSE"),	// 2nd comma in potential pair
+		.ALIGN_MCOMMA_VALUE(10'b10_1000_0011), // (Unused w/o double comma)
 		//
 		.SHOW_REALIGN_COMMA(OPT_AUTO_ALIGN ? "TRUE" : "FALSE"),
 		//
@@ -852,7 +851,7 @@ module	sata_phy #(
 		.CPLLPD(power_down),	// Keep powered up
 		.RXPD(power_down ? 2'b11 : 2'b00),	// Rx power down
 		.TXPD(power_down ? 2'b11 : 2'b00),	// Tx power down
-		.TXPDELECIDLEMODE(1'b0), // Power down on async input (always 0)
+		.TXPDELECIDLEMODE(1'b1), // Power down on async input (always 0)
 		.RXPHDLYPD(power_down && OPT_RXBUFFER),
 		.TXPHDLYPD(power_down && OPT_TXBUFFER),
 		// }}}
@@ -869,7 +868,7 @@ module	sata_phy #(
 		// inputs
 		.RXCOMMADETEN(OPT_AUTO_ALIGN),	// Detect alignment primitives
 		// Which commas should we align on?
-		.RXMCOMMAALIGNEN(i_realign && OPT_AUTO_ALIGN), // M commas
+		.RXMCOMMAALIGNEN(0 && i_realign && OPT_AUTO_ALIGN), // M commas
 		.RXPCOMMAALIGNEN(i_realign && OPT_AUTO_ALIGN), // P commas too
 		.RXSLIDE(1'b0),	// No manual comma alignment
 		// outputs
@@ -1037,8 +1036,8 @@ module	sata_phy #(
 		// {{{
 		// Transmit data
 		// {{{
-		.TXCHARDISPMODE(8'h0),	// When 8B10B disabled
-		.TXCHARDISPVAL(8'h0),	// When 8B10B disabled
+		.TXCHARDISPMODE(8'h0),	// Only used when 8B10B disabled
+		.TXCHARDISPVAL(8'h0),	// Only used when 8B10B disabled
 		.TXDATA(OPT_LITTLE_ENDIAN ? { 32'h0, i_tx_data }
 			: { 32'h0,
 			i_tx_data[ 7: 0], i_tx_data[15: 8],

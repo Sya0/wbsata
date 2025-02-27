@@ -235,12 +235,13 @@ module	sata_reset #(
 			begin
 				fsm_state <= HR_ISSUE_COMINIT;
 				o_tx_cominit  <= 1'b1;
+				o_tx_elecidle <= 1'b0;
 			end end
 		HR_ISSUE_COMINIT: begin
 			// {{{
 			// Issue COMRESET, and wait for the PHY (not the device
 			// yet) to acknowledge it before continuing.
-			o_tx_elecidle <= 1'b1;
+			o_tx_elecidle <= 1'b0;
 			o_rx_cdrhold  <= 1'b1;
 
 			if (i_tx_comfinish)

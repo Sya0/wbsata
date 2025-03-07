@@ -86,9 +86,9 @@ module	satalnk_txpacket #(
 		// {{{
 		.i_clk(i_clk), .i_reset(i_reset),
 		.i_valid(s_valid), .o_ready(s_ready),
-			.i_data({ s_last, s_data }),
+		.i_data({ s_last, s_data }),
 		.o_valid(skd_valid), .i_ready(skd_ready),
-			.o_data({ skd_last, skd_data })
+		.o_data({ skd_last, skd_data })
 		// }}}
 	);
 	// }}}

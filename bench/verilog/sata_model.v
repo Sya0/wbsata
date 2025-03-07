@@ -272,23 +272,36 @@ module	sata_model (
 	);
 	// }}}
 
+	mdl_satacmd 
+	u_mdl_satacmd (
+        .i_tx_clk(txwclk), .i_phy_clk(rxclk),
+		.i_reset(mdl_reset || mdl_phy_down), .i_phy_reset(mdl_reset_request),
+		.s_valid(rxaxin_valid),
+		// .s_ready,
+		.s_full(rxaxin_full),
+		.s_empty(rxaxin_empty),
+		.s_data(rxaxin_data),
+		.s_last(rxaxin_last),
+		.s_abort(rxaxin_abort),
+		//
+		.m_valid(txaxin_valid),
+		.m_ready(txaxin_ready),
+		.m_data(txaxin_data),
+		.m_last(txaxin_last)
+		// .m_abort	// TX aborts
+		// }}}
+    );
+
 	// initial begin
     // 	$dumpfile("waveform.vcd");
     // 	$dumpvars(0, sata_model);
     // end
-
-	assign	txaxin_valid = 1'b0;
-	assign	txaxin_data  = 32'h0;
-	assign	txaxin_last  = 1'b0;
-	assign	rxaxin_full  = 1'b0;
-	assign	rxaxin_empty = 1'b1;
 
 	assign	linktx_valid = 1'b1;
 
 	// Verilator lint_off UNUSED
 	wire	unused;
 	assign	unused = &{ 1'b0, mdl_link_ready, mdl_link_err, linktx_ready,
-			txaxin_ready, txaxin_success, txaxin_failed,
-			rxaxin_valid, rxaxin_data, rxaxin_last, rxaxin_abort };
+			txaxin_success, txaxin_failed };
 	// Verilator lint_on  UNUSED
 endmodule

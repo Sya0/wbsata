@@ -231,7 +231,7 @@ module	satalnk_fsm (
 				begin
 					// {{{
 					link_state <= L_WAIT;
-					m_phy_data <= P_HOLD;
+					// m_phy_data <= P_HOLD;
 					r_ready  <= 1'b0;
 					// }}}
 				end else if (i_rx_valid && i_rx_primitive)
@@ -379,7 +379,7 @@ module	satalnk_fsm (
 			begin
 				if (i_rx_data[31:0] == P_X_RDY[31:0])
 				begin
-					if (!m_empty)
+					if (!m_full)
 						link_state <= L_RCVCHKRDY;
 					else
 						link_state <= L_RCVWAITFIFO;

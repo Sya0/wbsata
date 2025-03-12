@@ -81,7 +81,7 @@ module mdl_oob (
             data_burst <= SYNC_P;
         else
             data_burst <= ALIGN_P;
-    
+
     // assign  data_burst = ALIGN_P;
 
     // OOB Test Sequence for COMRESET, COMINIT and COMWAKE
@@ -235,7 +235,7 @@ module mdl_oob (
                 burst_en <= 1'b1;
             end
         // after this stage burst_en should be always '1'
-        end else if (send_align) begin  
+        end else if (send_align) begin
             burst_en <= 1'b1;
             if (burst_timeout == 0) begin
                 burst_cnt <= burst_cnt + 1;

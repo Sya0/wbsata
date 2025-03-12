@@ -82,7 +82,7 @@ module	satalnk_rxpacket #(
 
 	wire		ds_valid, ds_last;
 	wire	[31:0]	ds_data;
-	
+
 	wire	[31:0]	crc_data;
 	wire		crc_abort;
 	// }}}

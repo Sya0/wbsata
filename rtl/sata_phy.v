@@ -48,6 +48,7 @@
 // }}}
 module	sata_phy #(
 		// {{{
+		parameter	REFCLK_FREQUENCY = 150,	// MHz
 		parameter [0:0]	OPT_LITTLE_ENDIAN = 1'b1,
 		parameter [0:0]	OPT_RXBUFFER = 1'b1,
 		parameter [0:0]	OPT_TXBUFFER = 1'b1,
@@ -57,8 +58,8 @@ module	sata_phy #(
 	) (
 		// {{{
 		input	wire		i_wb_clk, i_reset, i_ref_clk200,
-		//
-		// input	wire		i_sata_ref_p, i_sata_ref_n,
+		// External reference clock
+		input	wire		i_ref_sata_clk,
 		//
 		output	wire		o_ready, o_init_err,
 		// Wishbone DRP Control
@@ -111,11 +112,11 @@ module	sata_phy #(
 
 	// Declarations
 	// {{{
-	wire	i_realign, syncd, resyncd, rx_polarity, tx_polarity,
-		rx_cdr_hold, raw_tx_clk, gtx_refck;
-	wire	power_down, qpll_lock, tx_pll_lock;
-	wire	ign_cpll_locked, ign_rx_comma;
-	reg	pll_reset, gtx_reset;
+	localparam [0:0]	USE_QPLL = (REFCLK_FREQUENCY == 150);
+	wire		i_realign, syncd, resyncd, rx_polarity,
+			tx_polarity, rx_cdr_hold, raw_tx_clk;
+	wire		power_down, tx_pll_lock;
+	wire		cpll_locked, ign_rx_comma, pll_locked, cpll_reset;
 	wire	[63:0]	raw_rx_data;
 	wire	[7:0]	rx_char_is_k, rx_invalid_code, rx_disparity_err;
 	reg		qpll_reset;
@@ -181,10 +182,10 @@ module	sata_phy #(
 	) rx_init (
 		// {{{
 		.i_clk(i_wb_clk),
-		.i_reset(i_reset || qpll_reset || !qpll_lock),
+		.i_reset(i_reset || qpll_reset || (!pll_locked && USE_QPLL)),
 		.i_power_down(1'b0), // power_down),
 		.o_pll_reset(rx_pll_reset),
-		.i_pll_locked(qpll_lock),
+		.i_pll_locked(pll_locked || !USE_QPLL),
 		.o_gtx_reset(rx_gtx_reset),
 		.i_gtx_reset_done(rx_reset_done),
 		.i_aligned(rx_aligned),
@@ -231,10 +232,10 @@ module	sata_phy #(
 	) tx_init (
 		// {{{
 		.i_clk(i_wb_clk),
-		.i_reset(i_reset || !qpll_lock),
+		.i_reset(i_reset || (!pll_locked && USE_QPLL)),
 		.i_power_down(1'b0), // power_down),
 		.o_pll_reset(tx_pll_reset),
-		.i_pll_locked(qpll_lock),
+		.i_pll_locked(pll_locked || !USE_QPLL),
 		.o_gtx_reset(tx_gtx_reset),
 		.i_gtx_reset_done(tx_reset_done && tx_pll_lock),
 		.i_aligned(1'b1),	// We don't wait for TX alignment
@@ -314,22 +315,6 @@ module	sata_phy #(
 	end
 
 `else
-	reg	sata_ref_ck;
-	wire	i_sata_ref_p, i_sata_ref_n;
-	localparam realtime	CK_HALFPERIOD_NS = 1000.0 / 150.0 / 2.0;
-
-	initial begin
-		forever
-			#CK_HALFPERIOD_NS sata_ref_ck = (sata_ref_ck === 1'b0);
-	end
-
-	assign	{ i_sata_ref_p, i_sata_ref_n } = { sata_ref_ck, !sata_ref_ck };
-
-	IBUFDS_GTE2
-	u_clkbuf (
-		.I(i_sata_ref_p), .IB(i_sata_ref_n), .CEB(1'b0),
-		.O(gtx_refck)
-	);
 
 	// Clock speed notes
 	// {{{
@@ -358,85 +343,134 @@ module	sata_phy #(
 	//
 	// We use the QPLL over the CPLL, because the CPLL tops out at 3.3GHz,
 	// and so the QPLL allows us to imagine a 6GHz, SATA v3 connection.
+	//
+	// HOWEVER ... If we only have a 100MHz or a 200MHz incoming frequency,
+	//	fPLLClkOut = fPLLClkIn * N1 * N2 / M
+	//		N1 in {          4, 5 }		// CPLL_FBDIV_45
+	//		N2 in { 1, 2, 3, 4, 5 }		// CPLL_FBDIV
+	//		M  in { 1, 2          }		// CPLL_REFCLK_DIV
+	//	fPLLClkOut = fPLLClkIn * 3 * 5 / 1
+	//			100 * 15	=> 1500
+	//			200 * 15	=> 3000
+	//	fLineRate = fPLLClkOut * 2 / D
+	//			=> 1500 * 2 / { 1 2   } = (      3000, 1500)
+	//			=> 3000 * 2 / { 1 2 4 } = (6000, 3000, 1500)
 	// }}}
-	GTXE2_COMMON #(
+	// REFCLK_FREQUENCY is one of 100, or 150 (MHz)
+	// .RXOUT_DIV((SATA_GEN <= 1) ? 8 : ((SATA_GEN == 2) ? 4 : 2)),
+	parameter FIXED_CLKDIV = (REFCLK_FREQUENCY == 150)
+			? ((SATA_GEN <= 1) ? 8 : ((SATA_GEN == 2) ? 4 : 2))
+			: ((REFCLK_FREQUENCY == 100)
+				?(SATA_GEN <= 1 ? 2 : 1)
+				:(SATA_GEN <= 1 ? 4 : (SATA_GEN == 2) ? 2 : 1));
+
+	generate if (REFCLK_FREQUENCY == 150)
+	begin : GEN_QPLL
 		// {{{
-		.IS_DRPCLK_INVERTED(1'b0),
-		.IS_GTGREFCLK_INVERTED(1'b0),
-		.IS_QPLLLOCKDETCLK_INVERTED(1'b0),
-		//
-		// Clock frequency selection configuration
-		// {{{
-		.QPLL_REFCLK_DIV(1),		// = M, can be 1,2,3, or 4
-		.QPLL_FBDIV(10'h120),		// N = 80
-		.QPLL_FBDIV_RATIO(1),
+		wire	qpll_lock, pll_reset;
+
+		GTXE2_COMMON #(
+			// {{{
+			.IS_DRPCLK_INVERTED(1'b0),
+			.IS_GTGREFCLK_INVERTED(1'b0),
+			.IS_QPLLLOCKDETCLK_INVERTED(1'b0),
+			//
+			// Clock frequency selection configuration
+			// {{{
+			// REFCLK_FREQUENCY is one of 100, or 150 (MHz)
+			// fPLLClkout = fPllClkin  * N / 2 / M
+			// fLineRate = fPllClkout  * 2 / D
+			//			= fPllClkin * N / M / D
+			// QPLL
+			//	fPllClkin = 150 MHz
+			//			QPLL Upper band (9.8-12.5 GHz)
+			//		M = 1, N = 80, D = 8
+			//		fPllClkout = 6,000 GHz
+			//		fLineRate  = 1,500 GHz
+			//
+			//	fPllClkin = 100 MHz
+			//		QPLL won't work
+			.QPLL_REFCLK_DIV(1),	// = M, can be 1,2,3, or 4
+			.QPLL_FBDIV(10'h120),	// N = 80
+			.QPLL_FBDIV_RATIO(1),
+			// }}}
+			.QPLL_FBDIV_MONITOR_EN(1'b0),
+			.SIM_QPLLREFCLK_SEL(3'b001),
+			.SIM_RESET_SPEEDUP("TRUE"),
+			// .SIM_VERSION("4.0"),
+			//
+			.BIAS_CFG			(64'h0000_0400_0000_1000),
+			.COMMON_CFG			(32'h0),
+			.QPLL_CFG			(27'h06801C1),
+			.QPLL_CLKOUT_CFG		(4'b0000),
+			.QPLL_COARSE_FREQ_OVRD		(6'b010000),
+			.QPLL_COARSE_FREQ_OVRD_EN	(1'b0),
+			.QPLL_CP			(10'h1f),
+			.QPLL_CP_MONITOR_EN		(1'b0),
+			.QPLL_DMONITOR_SEL		(1'b0),
+			.QPLL_INIT_CFG			(24'h6),
+			.QPLL_LOCK_CFG			(16'h21E8),
+			.QPLL_LPF			(4'hf)
+			// }}}
+		) u_gtxclk (
+			// {{{
+			.QPLLREFCLKSEL(3'b001),		// GTREFCLK0 selected
+			.GTREFCLK0(i_ref_sata_clk),
+			.GTREFCLK1(i_ref_sata_clk),		// Unused
+			.QPLLLOCK(qpll_lock),
+			.QPLLLOCKDETCLK(i_wb_clk),
+			.QPLLLOCKEN(1'b1),
+			.QPLLPD(1'b0),	// Powers down the QPLL for pwr savings
+			.QPLLRESET(pll_reset),
+			//
+			.QPLLOUTCLK(qpll_clk),
+			.QPLLOUTREFCLK(qpll_refck),
+			// DRP
+			// {{{
+			.DRPCLK(i_wb_clk),
+			.DRPEN(1'b0),
+			.DRPWE(1'b0),
+			.DRPADDR(8'h0),
+			.DRPDI(16'h0),
+			.DRPDO(),
+			.DRPRDY(),
+			// }}}
+			// Unused
+			// {{{
+			.QPLLDMONITOR(),
+			//
+			.REFCLKOUTMONITOR(),
+			.GTGREFCLK(1'b0),	// Internal testing pport only
+			.GTNORTHREFCLK0(1'b0),
+			.GTNORTHREFCLK1(1'b0),
+			.GTSOUTHREFCLK0(1'b0),
+			.GTSOUTHREFCLK1(1'b0),
+			.QPLLREFCLKLOST(),	// Output, indicates reference clk lost
+			// Reserved
+			.QPLLRSVD1(16'h0),
+			.QPLLRSVD2(5'h1f),
+			.BGBYPASSB(1'b1),	// Must be set to 1
+			.BGMONITORENB(1'b1),	// Must be set to 1
+			.BGPDB(1'b1),		// Must be set to 1
+			.BGRCALOVRD(5'h1f),	// Must be set to 5'h1f
+			.PMARSVD(8'h0),		// Reserved
+			.RCALENB(1'b1),		// Reserved, must be set to 1
+			.QPLLOUTRESET(1'b0)	// Reserved, must be set to 0
+			//
+			// }}}
+			// }}}
+		);
+
+		assign	pll_locked = qpll_lock;
+		assign	cpll_reset = 1'b1;
 		// }}}
-		.QPLL_FBDIV_MONITOR_EN(1'b0),
-		.SIM_QPLLREFCLK_SEL(3'b001),
-		.SIM_RESET_SPEEDUP("TRUE"),
-		// .SIM_VERSION("4.0"),
-		//
-		.BIAS_CFG			(64'h0000_0400_0000_1000),
-		.COMMON_CFG			(32'h0),
-		.QPLL_CFG			(27'h06801C1),
-		.QPLL_CLKOUT_CFG		(4'b0000),
-		.QPLL_COARSE_FREQ_OVRD		(6'b010000),
-		.QPLL_COARSE_FREQ_OVRD_EN	(1'b0),
-		.QPLL_CP			(10'h1f),
-		.QPLL_CP_MONITOR_EN		(1'b0),
-		.QPLL_DMONITOR_SEL		(1'b0),
-		.QPLL_INIT_CFG			(24'h6),
-		.QPLL_LOCK_CFG			(16'h21E8),
-		.QPLL_LPF			(4'hf)
-		// }}}
-	) u_gtxclk (
-		// {{{
-		.QPLLREFCLKSEL(3'b001),		// GTREFCLK0 selected
-		.GTREFCLK0(gtx_refck),
-		.GTREFCLK1(gtx_refck),		// Unused
-		.QPLLLOCK(qpll_lock),
-		.QPLLLOCKDETCLK(i_wb_clk),
-		.QPLLLOCKEN(1'b1),
-		.QPLLPD(1'b0),	// Powers down the QPLL for pwr savings
-		.QPLLRESET(pll_reset),
-		//
-		.QPLLOUTCLK(qpll_clk),
-		.QPLLOUTREFCLK(qpll_refck),
-		// DRP
-		// {{{
-		.DRPCLK(i_wb_clk),
-		.DRPEN(1'b0),
-		.DRPWE(1'b0),
-		.DRPADDR(8'h0),
-		.DRPDI(16'h0),
-		.DRPDO(),
-		.DRPRDY(),
-		// }}}
-		// Unused
-		// {{{
-		.QPLLDMONITOR(),
-		//
-		.REFCLKOUTMONITOR(),
-		.GTGREFCLK(1'b0),	// Internal testing pport only
-		.GTNORTHREFCLK0(1'b0),
-		.GTNORTHREFCLK1(1'b0),
-		.GTSOUTHREFCLK0(1'b0),
-		.GTSOUTHREFCLK1(1'b0),
-		.QPLLREFCLKLOST(),	// Output, indicates reference clk lost
-		// Reserved
-		.QPLLRSVD1(16'h0),
-		.QPLLRSVD2(5'h1f),
-		.BGBYPASSB(1'b1),	// Must be set to 1
-		.BGMONITORENB(1'b1),	// Must be set to 1
-		.BGPDB(1'b1),		// Must be set to 1
-		.BGRCALOVRD(5'h1f),	// Must be set to 5'h1f
-		.PMARSVD(8'h0),		// Reserved
-		.RCALENB(1'b1),		// Reserved, must be set to 1
-		.QPLLOUTRESET(1'b0)	// Reserved, must be set to 0
-		//
-		// }}}
-		// }}}
-	);
+	end else begin : NO_QPLL
+
+		assign	qpll_clk   = 1'b0;
+		assign	qpll_refck = 1'b0;
+		assign	pll_locked = cpll_locked;
+		assign	cpll_reset = i_reset;
+	end endgenerate
 
 	GTXE2_CHANNEL #(
 		// {{{
@@ -543,7 +577,7 @@ module	sata_phy #(
 		// fLineRate = fPLLCLKout * 2 / TXOUT_DIV
 		//	Given fPLLClkout = 6GHz, to be in QPLL range, thus...
 		//	= 6, 3, or 1.5GHz depending on SATA_GEN below
-		.RXOUT_DIV((SATA_GEN <= 1) ? 8 : ((SATA_GEN == 2) ? 4 : 2)),
+		.RXOUT_DIV(FIXED_CLKDIV),
 		// }}}
 		// RX Margin Analysis (Eye Scan)
 		// {{{
@@ -717,7 +751,7 @@ module	sata_phy #(
 		// {{{
 		// fLineRate = fPLLCLKout * 2 / TXOUT_DIV
 		//	= 6, 3, or 1.5GHz depending on SATA_GEN below
-		.TXOUT_DIV((SATA_GEN == 1) ? 8 : ((SATA_GEN == 2) ? 4 : 2)),
+		.TXOUT_DIV(FIXED_CLKDIV),
 		// }}}
 		// TX Configurable Driver
 		// {{{
@@ -803,9 +837,9 @@ module	sata_phy #(
 		// }}}
 		// CPLL Reset
 		// {{{
-		.CPLLRESET(1'b1),
+		.CPLLRESET(cpll_reset),
 		.CPLLLOCKEN(1'b1),
-		.CPLLLOCK(ign_cpll_locked),
+		.CPLLLOCK(cpll_locked),
 		// }}}
 		// TX Init and reset ports
 		// {{{
@@ -839,7 +873,7 @@ module	sata_phy #(
 		(* invertible_pin = "IS_CPLLLOCKDETCLK_INVERTED" *)
 		.CPLLLOCKDETCLK(1'b0),	// Reqd only if FBCLKLOST/REFCLKLOST usd
 // SELECT ME WHEN DOING CLOCK SELECTION
-		.CPLLREFCLKSEL(3'b000),	// Clock comes from GTREFCLK0
+		.CPLLREFCLKSEL(3'b001),	// Clock comes from GTREFCLK0
 		.CPLLFBCLKLOST(),	// No connect
 		.CPLLREFCLKLOST(),	// No connect
 		//
@@ -944,7 +978,7 @@ module	sata_phy #(
 		.RXCDRHOLD(i_rx_cdrhold),	// i_rx_cdrhold
 		.RXCDROVRDEN(1'b0),
 		.RXCDRRESETRSV(1'b0),
-		.RXRATE((SATA_GEN==3) ? 3'd2 : (SATA_GEN==2) ? 3'd3 : 3'd4),
+		.RXRATE(3'h0), // (SATA_GEN==3) ? 3'd2 : (SATA_GEN==2) ? 3'd3 : 3'd4),
 		.RXCDRLOCK(),	// Open / no connect
 		// }}}
 		// RX Fabric clock output control ports
@@ -1086,7 +1120,7 @@ module	sata_phy #(
 		// {{{
 		.TXOUTCLKSEL(3'b001),
 		// Divide by 2, 4, or 8 -- see mapping
-		.TXRATE((SATA_GEN==3) ? 3'd2 : (SATA_GEN==2) ? 3'd3 : 3'd4),
+		.TXRATE(3'h0), // (SATA_GEN==3) ? 3'd2 : (SATA_GEN==2) ? 3'd3 : 3'd4),
 		.TXOUTCLKFABRIC(),	// Redundant, used by Xilinx for testing
 		// QPLL_REFCK speed (6.6666ns => 150MHz)
 		// At ... QPLL_CLK speed (0.1670 =~> 6GHz)
@@ -1134,7 +1168,8 @@ module	sata_phy #(
 		.GTGREFCLK(1'b0),
 		.GTNORTHREFCLK0(1'b0),
 		.GTNORTHREFCLK1(1'b0),
-		.GTREFCLK0(i_ref_clk200),
+		.GTREFCLK0(REFCLK_FREQUENCY == 150
+					? i_ref_clk200 : i_ref_sata_clk),
 		.GTREFCLK1(i_ref_clk200),	// We'll only select GTREFCLK0
 		.GTSOUTHREFCLK0(1'b0),
 		.GTSOUTHREFCLK1(1'b0),
@@ -1144,8 +1179,8 @@ module	sata_phy #(
 		.GTRSVD(16'h00),	// From wizard
 		.TSTIN(20'hf_ff_ff),
 		.RXMONITORSEL(2'b00),
-		.RXSYSCLKSEL(2'b11),	// Clock source from QPLL
-		.TXSYSCLKSEL(2'b11),	// Clock source from QPLL
+		.RXSYSCLKSEL(USE_QPLL ? 2'b11 : 2'b00),
+		.TXSYSCLKSEL(USE_QPLL ? 2'b11 : 2'b00),
 		.LOOPBACK(3'b0),	// 0 => No TX->RX Loop back
 		.TXBUFDIFFCTRL(3'h4),
 		.PCSRSVDIN2(5'h00),
@@ -1197,7 +1232,7 @@ module	sata_phy #(
 			.LOCKED(tx_pll_lock)
 		);
 		*/
-		assign	tx_pll_lock = qpll_lock;
+		assign	tx_pll_lock = pll_locked;
 		assign	tx_unbuffered = raw_tx_clk;
 		// }}}
 
@@ -1219,21 +1254,12 @@ module	sata_phy #(
 			.I(tx_unbuffered), .O(o_tx_clk));
 		// }}}
 `endif
-	
+
 	end else begin : NO_TXBUF
 		// assign	o_tx_clk = raw_tx_clk;
 		BUFG txbuf ( .I(raw_tx_clk), .O(o_tx_clk));
-/*
-		MMCM #(
-		) tx_mmcm (
-			.CLKIN(raw_tx_clk),
-			.CLKOUT1(tx_clk_unbuffered)
-		);
 
-		BUFX txbuf (.I(tx_clk_unbuffered), .O(o_tx_clk));
-*/
-
-		assign	tx_pll_lock = qpll_lock;
+		assign	tx_pll_lock = pll_locked;
 	end endgenerate
 
 endmodule

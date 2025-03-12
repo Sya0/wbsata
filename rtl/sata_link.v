@@ -127,7 +127,7 @@ module	sata_link #(
 		{ rx_reset_n, rx_reset_pipe } <= 3'h0;
 	else
 		{ rx_reset_n, rx_reset_pipe } <= { rx_reset_pipe, 1'b1 };
-	
+
 	// 1. Remove any received continue and align primitives
 	// {{{
 	satalnk_rmcont #(

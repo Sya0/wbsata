@@ -63,7 +63,7 @@ module	mdl_scomfsm #(
     localparam [(P_BITS/4)-1:0] D21_4 = 10'b1010101101;
     localparam [(P_BITS/4)-1:0] K28_3 = 10'b0011110011;
     localparam [(P_BITS/4)-1:0] D21_5 = 10'b1010101010;
-    
+
     localparam [P_BITS-1:0] SYNC_P = { D21_5, D21_5, D21_4, K28_3 };
 
 	wire	oob_tx_p, oob_tx_n;
@@ -91,7 +91,7 @@ module	mdl_scomfsm #(
         .o_tx_n(oob_tx_n)
     );
 	// }}}
-	
+
 	mdl_srxcomsigs #(
 		.OVERSAMPLE(4), .CLOCK_SYM_NS(CLOCK_SYM_NS)
 	) u_comdet (

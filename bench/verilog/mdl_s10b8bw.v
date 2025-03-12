@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2022-2024, Gisselquist Technology, LLC
+// Copyright (C) 2022-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -68,25 +68,25 @@ module	mdl_s10b8bw #(
 	mdl_s10b8b
 	u_b0 (
 		.S_DATA(S_DATA[9:0]),
-		.M_DATA({ w_ctrl[0], w_data[31:24] })
+		.M_DATA({ w_ctrl[3], w_data[7:0] })
 	);
 
 	mdl_s10b8b
 	u_b1 (
 		.S_DATA(S_DATA[19:10]),
-		.M_DATA({ w_ctrl[1], w_data[23:16] })
+		.M_DATA({ w_ctrl[2], w_data[15:8] })
 	);
 
 	mdl_s10b8b
 	u_b2 (
 		.S_DATA(S_DATA[29:20]),
-		.M_DATA({ w_ctrl[2], w_data[15:8] })
+		.M_DATA({ w_ctrl[1], w_data[23:16] })
 	);
 
 	mdl_s10b8b
 	u_b3 (
 		.S_DATA(S_DATA[39:30]),
-		.M_DATA({ w_ctrl[3], w_data[7:0] })
+		.M_DATA({ w_ctrl[0], w_data[31:24] })
 	);
 
 	assign	nxt_illegal = S_VALID && ((|w_ctrl[3:1])

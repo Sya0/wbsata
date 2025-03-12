@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2022-2024, Gisselquist Technology, LLC
+// Copyright (C) 2022-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -52,6 +52,7 @@ module	satatb_top;
 	parameter	CONSOLE_FILE="console.txt";
 	localparam	BFM_DW = 32,
 			BFM_AW = ADDRESS_WIDTH-$clog2(BFM_DW/8);
+	localparam	SATA_REFCLK_FREQ = 200;	// MHz
 
 	// Address map
 	// {{{
@@ -68,7 +69,7 @@ module	satatb_top;
 			SATA_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
 			DRP_MASK  = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} };
 	// }}}
-	reg	wb_clk, wb_reset;
+	reg	wb_clk, wb_reset, sata_ref_ck;
 	reg	ref_clk200;
 
 	// BFM Bus Connections
@@ -191,7 +192,8 @@ module	satatb_top;
 			sata_rxphy_comwake, sata_rxphy_cdrhold,
 			sata_rxphy_cdrlock;
 
-	wire		sata_rxphy_clk, sata_rxphy_valid;
+	wire		sata_rxphy_clk, sata_rxphy_valid,
+			sata_rxphy_primitive;
 	wire	[31:0]	sata_rxphy_data;
 
 	// }}}
@@ -209,6 +211,16 @@ module	satatb_top;
 		ref_clk200 = 1'b0;
 		forever
 			#2.5 ref_clk200 = !ref_clk200;
+	end
+
+
+	// SATA requires a reference clock.  Must be 100, 150, or 200MHz
+	localparam realtime	REFCK_HALFPERIOD_NS = 1000.0
+					/ $itor(SATA_REFCLK_FREQ) / 2.0;
+
+	initial begin
+		forever
+			#REFCK_HALFPERIOD_NS sata_ref_ck = (sata_ref_ck === 1'b0);
 	end
 
 	initial	begin
@@ -302,7 +314,7 @@ module	satatb_top;
 			.i_serr(zdbg_err)
 			// }}}
 		);
-		
+
 		zipsystem #(
 			// {{{
 			.ADDRESS_WIDTH(ADDRESS_WIDTH),
@@ -494,7 +506,7 @@ module	satatb_top;
 		// {{{
 		.i_rxphy_clk(sata_rxphy_clk),
 		.i_rxphy_valid(sata_rxphy_valid),
-		.i_rxphy_data({ 1'b1, sata_rxphy_data }),
+		.i_rxphy_data({ sata_rxphy_primitive, sata_rxphy_data }),
 
 		.i_txphy_clk(sata_txphy_clk),
 		.i_txphy_ready(sata_txphy_ready),
@@ -539,12 +551,14 @@ module	satatb_top;
 		// }}}
 	);
 
-	sata_phy
-	u_sata_phy (
+	sata_phy #(
+		.REFCLK_FREQUENCY(SATA_REFCLK_FREQ)	// MHz.  Can be 100 or 150
+	) u_sata_phy (
 		// {{{
 		.i_wb_clk(wb_clk), .i_reset(wb_reset),
 		.i_ref_clk200(ref_clk200),
-
+		.i_ref_sata_clk(sata_ref_ck),
+		//
 		.o_ready(sata_phy_ready), .o_init_err(sata_phy_init_err),
 		// DRP interface
 		// {{{
@@ -572,6 +586,8 @@ module	satatb_top;
 		.o_rx_clk(sata_rxphy_clk),
 		.o_rx_primitive(sata_rxphy_valid),
 		.o_rx_data(sata_rxphy_data),
+		.o_syncd(sata_rxphy_valid),
+		// .o_rx_error
 		//
 		.o_rx_elecidle(sata_rxphy_elecidle),
 		.o_rx_cominit_detect(sata_rxphy_cominit),
@@ -701,7 +717,7 @@ module	satatb_top;
 		repeat(100)
 			@(posedge wb_clk);
 		testscript;
-		
+
 		repeat(50)
 			@(posedge wb_clk);
 

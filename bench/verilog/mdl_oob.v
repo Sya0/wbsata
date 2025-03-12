@@ -1,5 +1,43 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// Filename:	bench/verilog/mdl_oob.v
+// {{{
+// Project:	A Wishbone SATA controller
+//
+// Purpose:	
+//
+// Creator:	Dan Gisselquist, Ph.D.
+//		Gisselquist Technology, LLC
+//
+////////////////////////////////////////////////////////////////////////////////
+// }}}
+// Copyright (C) 2025, Gisselquist Technology, LLC
+// {{{
+// This file is part of the WBSATA project.
+//
+// The WBSATA project is a free software (firmware) project: you may
+// redistribute it and/or modify it under the terms of  the GNU General Public
+// License as published by the Free Software Foundation, either version 3 of
+// the License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTIBILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+// for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program.  If not, please see <http://www.gnu.org/licenses/> for a
+// copy.
+// }}}
+// License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
+//		http://www.gnu.org/licenses/gpl.html
+//
+////////////////////////////////////////////////////////////////////////////////
+//
 `timescale 1ns / 1ps
-
+`default_nettype none
+// }}}
 module mdl_oob (
         input   wire i_clk,
         input   wire i_rst,
@@ -16,15 +54,12 @@ module mdl_oob (
     localparam [(P_BITS/4)-1:0] D21_4 = 10'b1010101101;
     localparam [(P_BITS/4)-1:0] K28_3 = 10'b0011110011;
     localparam [(P_BITS/4)-1:0] D21_5 = 10'b1010101010;
-    localparam [(P_BITS/4)-1:0] D23_2 = 10'b1110100101;
     localparam [(P_BITS/4)-1:0] K28_5 = 10'b0011111010;  // K28.5 chars (Inverts disparity)
     localparam [(P_BITS/4)-1:0] D10_2 = 10'b0101010101;  // D10.2 chars (Neutral)
     localparam [(P_BITS/4)-1:0] D27_3 = 10'b0010011100;  // D27.3 chars (Inverts disparity)
 
     localparam [P_BITS-1:0] SYNC_P = { D21_5, D21_5, D21_4, K28_3 };
     localparam [P_BITS-1:0] ALIGN_P = { D27_3, D10_2, D10_2, K28_5 };
-    localparam [P_BITS-1:0] X_RDY = { D23_2, D23_2, D21_5, K28_3 };
-    localparam [P_BITS-1:0] R_RDY = { D10_2, D10_2, D21_4, K28_3 };
 
     // Parameters
     localparam CLOCK_PERIOD = 0.667; // 1.5GHz = 667ps = 0.667ns
@@ -44,13 +79,12 @@ module mdl_oob (
                 WAIT_COMWAKE = 3,
                 COMWAKE_DET = 4,
 				SEND_ALIGN = 5,
-                SEND_SYNC = 6,
-                SEND_RREADY = 7;
+                SEND_SYNC = 6;
     reg	[2:0]	fsm_state;
 
     // Testbench signals
     wire    tx_p, tx_n;
-    reg     send_cominit, send_comwake, send_align, send_sync, send_rrdy;
+    reg     send_cominit, send_comwake, send_align, send_sync;
     reg [P_BITS-1:0]  data_burst;
     reg     burst_en;
     reg [12:0]   burst_cnt;
@@ -77,11 +111,11 @@ module mdl_oob (
     // end
 
     always @(*)
-        if (fsm_state == SEND_SYNC)
+        if (send_sync)
             data_burst <= SYNC_P;
         else
             data_burst <= ALIGN_P;
-    
+
     // assign  data_burst = ALIGN_P;
 
     // OOB Test Sequence for COMRESET, COMINIT and COMWAKE
@@ -89,7 +123,6 @@ module mdl_oob (
     initial send_comwake = 1'b0;
     initial send_align = 1'b0;
     initial send_sync = 1'b0;
-    initial send_rrdy = 1'b0;
     always @(posedge i_clk)
 	if (i_rst) begin
 		fsm_state    <= SEND_COMINIT;
@@ -97,8 +130,6 @@ module mdl_oob (
 		send_comwake <= 1'b0;
 		send_align   <= 1'b0;
         send_sync    <= 1'b0;
-        // send_rrdy    <= 1'b0;
-        wait_align   <= 0;
         o_done       <= 1'b0;
     end else begin
         case(fsm_state)
@@ -138,7 +169,7 @@ module mdl_oob (
                 end
             end
             SEND_ALIGN: begin
-                // fsm_state  <= WAIT_ALIGN;
+                // fsm_state <= SEND_SYNC;
                 send_align <= 1'b1;
                 // if (burst_cnt == 2048) begin    // magic number (2048)
                     if (i_oob_done) begin
@@ -151,15 +182,6 @@ module mdl_oob (
             end
             SEND_SYNC: begin
                 send_sync <= 1'b1;
-                // if (i_link_layer_up) begin
-                //     fsm_state <= SEND_RREADY;
-                //     send_sync <= 1'b1;
-                //     send_rrdy <= 1'b1;
-                //     $display("Starting RREADY Sequence");
-                // end
-            end
-            SEND_RREADY: begin
-                send_rrdy <= 1'b1;
             end
         endcase
     end
@@ -206,7 +228,7 @@ module mdl_oob (
                     burst_timeout <= burst_timeout + 1;
                 idle_timeout <= 0;
             end
-        end else if (send_sync || send_rrdy) begin
+        end else if (send_sync) begin
             if (burst_en) begin
                 if (burst_timeout == (P_BITS-1))
                     burst_timeout <= 0;
@@ -235,12 +257,12 @@ module mdl_oob (
                 burst_en <= 1'b1;
             end
         // after this stage burst_en should be always '1'
-        end else if (send_align) begin  
+        end else if (send_align) begin
             burst_en <= 1'b1;
             if (burst_timeout == 0) begin
                 burst_cnt <= burst_cnt + 1;
             end
-        end else if (send_sync || send_rrdy) begin
+        end else if (send_sync) begin
             burst_en <= 1'b1;
             if (burst_cnt < 3)
                 burst_cnt <= 0;

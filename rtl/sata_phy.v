@@ -19,7 +19,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2021-2024, Gisselquist Technology, LLC
+// Copyright (C) 2021-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -387,7 +387,7 @@ module	sata_phy #(
 			//		M = 1, N = 80, D = 8
 			//		fPllClkout = 6,000 GHz
 			//		fLineRate  = 1,500 GHz
-			// 
+			//
 			//	fPllClkin = 100 MHz
 			//		QPLL won't work
 			.QPLL_REFCLK_DIV(1),	// = M, can be 1,2,3, or 4
@@ -1254,7 +1254,7 @@ module	sata_phy #(
 			.I(tx_unbuffered), .O(o_tx_clk));
 		// }}}
 `endif
-	
+
 	end else begin : NO_TXBUF
 		// assign	o_tx_clk = raw_tx_clk;
 		BUFG txbuf ( .I(raw_tx_clk), .O(o_tx_clk));

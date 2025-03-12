@@ -405,9 +405,9 @@ module	sata_reset #(
 	begin
 		watchdog_counter <= WATCHDOG_TIMEOUT[LGWATCHDOG-1:0];
 		retry_timeout    <= 0;
-	end else if (watchdog_counter != 0)
-	begin
-		watchdog_counter <= watchdog_counter - 1;
+	end else begin
+		if (watchdog_counter != 0)
+			watchdog_counter <= watchdog_counter - 1;
 		retry_timeout    <= (watchdog_counter <= 1);
 	end
 	// }}}

@@ -83,7 +83,7 @@ module	satatrn_txarb #(
 
 	// o_valid
 	// {{{
-	always @(posedge i_phy_clk or !i_phy_reset_n)
+	always @(posedge i_phy_clk or negedge i_phy_reset_n)
 	if (!i_phy_reset_n)
 		o_valid <= 1'b0;
 	else if (!o_valid || i_ready)
@@ -103,7 +103,7 @@ module	satatrn_txarb #(
 
 	// o_data, o_last
 	// {{{
-	always @(posedge i_phy_clk or !i_phy_reset_n)
+	always @(posedge i_phy_clk)
 	if (!o_valid || i_ready)
 	begin
 		if (mid_data_packet)

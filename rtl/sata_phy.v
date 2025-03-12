@@ -260,32 +260,41 @@ module	sata_phy #(
 	wire	[8:0]	i_drp_addr;
 	wire	[15:0]	i_drp_data, o_drp_data;
 	wire		o_drp_ready;
-	reg		pending_wb_ack;
+	reg		pending_ack, drop_wb_ack;
 
 	assign	i_drp_clk    = i_wb_clk;
 	assign	i_drp_data   = i_wb_data[15:0];
-	assign	i_drp_enable = pending_wb_ack;
+	assign	i_drp_enable = (i_wb_stb && !o_wb_stall && (&i_wb_sel[1:0]));
 	assign	i_drp_we     = i_drp_enable && i_wb_we;
-	assign	o_wb_stall   = !pending_wb_ack;
+	assign	o_wb_stall   = !pending_ack;
 	assign	i_drp_addr   = i_wb_addr[8:0];
 	// assign	o_wb_data    = { 16'h0, o_drp_data };
 	// assign	o_wb_ack     = o_drp_ready;
 
-	initial	pending_wb_ack = 1'b0;
+	initial	pending_ack = 1'b0;
 	always @(posedge i_drp_clk)
-	if (i_reset || !i_wb_cyc)
-		pending_wb_ack <= 1'b0;
-	else if (pending_wb_ack)
-		pending_wb_ack <= !o_drp_ready;
+	if (i_reset)
+		pending_ack <= 1'b0;
+	else if (pending_ack)
+		pending_ack <= !o_drp_ready;
 	else if (i_wb_stb && !o_wb_stall)
-		pending_wb_ack <= (&i_wb_sel[1:0]);
+		pending_ack <= (&i_wb_sel[1:0]);
+
+	initial	drop_wb_ack = 1'b0;
+	always @(posedge i_drp_clk)
+	if (i_reset)
+		drop_wb_ack <= 1'b0;
+	else if (o_drp_ready)
+		drop_wb_ack <= 1'b0;
+	else if (pending_ack && !i_wb_cyc)
+		drop_wb_ack <= 1'b1;
 
 	initial	o_wb_ack = 1'b0;
 	always @(posedge i_drp_clk)
 	if (i_reset || !i_wb_cyc)
 		o_wb_ack <= 1'b0;
-	else if (pending_wb_ack)
-		o_wb_ack <= o_drp_ready;
+	else if (pending_ack)
+		o_wb_ack <= o_drp_ready && !drop_wb_ack;
 	else
 		o_wb_ack <= i_wb_stb && (i_wb_sel[1:0] != 2'b11);
 
@@ -350,13 +359,14 @@ module	sata_phy #(
 	//		N2 in { 1, 2, 3, 4, 5 }		// CPLL_FBDIV
 	//		M  in { 1, 2          }		// CPLL_REFCLK_DIV
 	//	fPLLClkOut = fPLLClkIn * 3 * 5 / 1
-	//			100 * 15	=> 1500
+	//			100 * 15	=> 1500	(TOO LOW!!)
 	//			200 * 15	=> 3000
+	//		Must be between 1.6GHz and 3.3GHz
 	//	fLineRate = fPLLClkOut * 2 / D
 	//			=> 1500 * 2 / { 1 2   } = (      3000, 1500)
 	//			=> 3000 * 2 / { 1 2 4 } = (6000, 3000, 1500)
 	// }}}
-	// REFCLK_FREQUENCY is one of 100, or 150 (MHz)
+	// REFCLK_FREQUENCY is one of 150 or 200 (MHz)
 	// .RXOUT_DIV((SATA_GEN <= 1) ? 8 : ((SATA_GEN == 2) ? 4 : 2)),
 	parameter FIXED_CLKDIV = (REFCLK_FREQUENCY == 150)
 			? ((SATA_GEN <= 1) ? 8 : ((SATA_GEN == 2) ? 4 : 2))
@@ -416,7 +426,7 @@ module	sata_phy #(
 			// {{{
 			.QPLLREFCLKSEL(3'b001),		// GTREFCLK0 selected
 			.GTREFCLK0(i_ref_sata_clk),
-			.GTREFCLK1(i_ref_sata_clk),		// Unused
+			// .GTREFCLK1(),		// Unused
 			.QPLLLOCK(qpll_lock),
 			.QPLLLOCKDETCLK(i_wb_clk),
 			.QPLLLOCKEN(1'b1),
@@ -440,7 +450,7 @@ module	sata_phy #(
 			.QPLLDMONITOR(),
 			//
 			.REFCLKOUTMONITOR(),
-			.GTGREFCLK(1'b0),	// Internal testing pport only
+			// .GTGREFCLK(),	// Internal testing pport only
 			.GTNORTHREFCLK0(1'b0),
 			.GTNORTHREFCLK1(1'b0),
 			.GTSOUTHREFCLK0(1'b0),
@@ -1164,13 +1174,14 @@ module	sata_phy #(
 		// }}}
 		// }}}
 		.TSTOUT(),
-		(* invertible_pin = "IS_GTGREFCLK_INVERTED" *)
-		.GTGREFCLK(1'b0),
+		// (* invertible_pin = "IS_GTGREFCLK_INVERTED" *)
+		// .GTGREFCLK(),
 		.GTNORTHREFCLK0(1'b0),
 		.GTNORTHREFCLK1(1'b0),
-		.GTREFCLK0(REFCLK_FREQUENCY == 150
-					? i_ref_sata_clk : i_ref_clk200),
-		.GTREFCLK1(i_ref_clk200),	// We'll only select GTREFCLK0
+		.GTREFCLK0(USE_QPLL ? 1'b0 : i_ref_clk200),
+		// We'll only select GTREFCLK0, but refclk1 still needs to be
+		// valid for synthesis purposes
+		.GTREFCLK1(USE_QPLL ? 1'b0 : i_ref_clk200),
 		.GTSOUTHREFCLK0(1'b0),
 		.GTSOUTHREFCLK1(1'b0),
 		.QPLLCLK(qpll_clk),

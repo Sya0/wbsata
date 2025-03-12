@@ -1169,7 +1169,7 @@ module	sata_phy #(
 		.GTNORTHREFCLK0(1'b0),
 		.GTNORTHREFCLK1(1'b0),
 		.GTREFCLK0(REFCLK_FREQUENCY == 150
-					? i_ref_clk200 : i_ref_sata_clk),
+					? i_ref_sata_clk : i_ref_clk200),
 		.GTREFCLK1(i_ref_clk200),	// We'll only select GTREFCLK0
 		.GTSOUTHREFCLK0(1'b0),
 		.GTSOUTHREFCLK1(1'b0),

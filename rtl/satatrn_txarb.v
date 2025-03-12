@@ -83,8 +83,8 @@ module	satatrn_txarb #(
 
 	// o_valid
 	// {{{
-	always @(posedge i_clk)
-	if (i_reset)
+	always @(posedge i_phy_clk or !i_phy_reset_n)
+	if (!i_phy_reset_n)
 		o_valid <= 1'b0;
 	else if (!o_valid || i_ready)
 	begin
@@ -103,7 +103,7 @@ module	satatrn_txarb #(
 
 	// o_data, o_last
 	// {{{
-	always @(posedge i_clk)
+	always @(posedge i_phy_clk or !i_phy_reset_n)
 	if (!o_valid || i_ready)
 	begin
 		if (mid_data_packet)
@@ -113,7 +113,7 @@ module	satatrn_txarb #(
 		else if (txgate_phy && i_data_valid)
 			{ o_last, o_data } <= { 1'b0, 24'h0, FIS_DATA };
 		else if (!regfifo_empty || !OPT_LOWPOWER)
-			{ o_last, o_data } <= { 1'b0, i_reg_data };
+			{ o_last, o_data } <= { regfifo_last, regfifo_data };
 		else
 			{ o_last, o_data } <= 33'h0;
 	end

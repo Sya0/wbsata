@@ -70,7 +70,7 @@ module	mdl_scomfsm #(
 	reg	[0:0]	fsm_state;
 	reg		r_tx, r_oob;
 	wire	w_comwake, w_comreset;
-	wire [39:0] oob_reg, link_reg;
+	reg [39:0] oob_reg, link_reg;
 	wire 	oob_sync_true, link_sync_true;
 	wire	done;
 	// }}}
@@ -115,7 +115,7 @@ module	mdl_scomfsm #(
 			r_tx <= 1'bX;
 			r_oob <= 1'b1;
 			o_reset <= 1'b1;
-			if (i_oob_done) begin
+			if (i_link_layer_up) begin
 				fsm_state <= ACTIVE_TRANSACTION;
 				r_tx <= i_tx;
 				r_oob <= 1'b0;
@@ -131,8 +131,14 @@ module	mdl_scomfsm #(
 		end
 	endcase
 
-	assign oob_reg  = { oob_reg[38:0], oob_tx_p };
-	assign link_reg = { link_reg[38:0], r_tx };
+	always @(posedge i_txclk or i_reset)
+	if (i_reset) begin
+		oob_reg <= 0;
+		link_reg <= 0;	
+	end else begin
+		oob_reg <= { oob_reg[38:0], oob_tx_p };
+		link_reg <= { link_reg[38:0], r_tx };
+	end
 
 	assign	oob_sync_true = (oob_reg == SYNC_P) ? 1 : 0;
 	assign	link_sync_true = (link_reg == SYNC_P) ? 1 : 0;

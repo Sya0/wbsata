@@ -198,9 +198,9 @@ module	sata_transport #(
 
 	always @(posedge i_phy_clk or posedge i_reset)
 	if (i_reset)
-		{ phy_reset_n, phy_reset_xpipe } <= -1;
+		{ phy_reset_n, phy_reset_xpipe } <= 0;
 	else
-		{ phy_reset_n, phy_reset_xpipe } <= { phy_reset_xpipe, 1'b0 };
+		{ phy_reset_n, phy_reset_xpipe } <= { phy_reset_xpipe, !i_reset };
 
 	assign	rxdma_reset = !(s2mm_core_request || s2mm_core_busy);
 	always @(posedge i_phy_clk)
@@ -306,7 +306,7 @@ module	sata_transport #(
 		.BUS_WIDTH(DW), .OPT_LITTLE_ENDIAN(1'b0)
 	) u_rxgears (
 		// {{{
-		.i_clk(i_phy_clk), .i_reset(phy_reset_n),
+		.i_clk(i_phy_clk), .i_reset(!phy_reset_n),
 		.i_soft_reset(rx_reset_phyclk),
 		// .o_data_valid(datarx_valid),
 		// .o_data_data(datarx_data),

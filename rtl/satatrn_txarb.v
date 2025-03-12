@@ -36,7 +36,7 @@ module	satatrn_txarb #(
 
 	// txgate_phy, txgate_xpipe
 	// {{{
-	always @(posedge i_phy_clk or !i_phy_reset_n)
+	always @(posedge i_phy_clk or negedge i_phy_reset_n)
 	if (!i_phy_reset_n)
 		{ txgate_phy, txgate_xpipe } <= 0;
 	else
@@ -62,7 +62,7 @@ module	satatrn_txarb #(
 
 	// mid_data_packet
 	// {{{
-	always @(posedge i_phy_clk or !i_phy_reset_n)
+	always @(posedge i_phy_clk or negedge i_phy_reset_n)
 	if (!i_phy_reset_n)
 		mid_data_packet <= 1'b0;
 	else if (i_data_valid && o_data_ready)
@@ -74,7 +74,7 @@ module	satatrn_txarb #(
 
 	// mid_reg_packet
 	// {{{
-	always @(posedge i_phy_clk or !i_phy_reset_n)
+	always @(posedge i_phy_clk or negedge i_phy_reset_n)
 	if (!i_phy_reset_n)
 		mid_reg_packet <= 1'b0;
 	else if (!regfifo_empty && regfifo_ready)

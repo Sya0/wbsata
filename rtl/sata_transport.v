@@ -150,7 +150,7 @@ module	sata_transport #(
 
 	wire			rxfifo_full, rx_afifo_empty;
 	wire	[1+$clog2(DW/8)+DW-1:0]	rx_afifo_data;
-	wire	[LGFIFO:0]	ign_rxfifo_fill;
+	wire	[LGFIFO-$clog2(DW/8):0]	ign_rxfifo_fill;
 	wire		rxfifo_valid, rxfifo_ready, rxfifo_last, rxfifo_empty;
 	wire	[$clog2(DW/8)-1:0]	rxfifo_bytes;
 	wire	[DW-1:0]		rxfifo_data;
@@ -167,7 +167,7 @@ module	sata_transport #(
 	wire			txfifo_full, txfifo_empty, txfifo_last;
 	wire	[DW-1:0]	txfifo_data;
 	wire [$clog2(DW/8)-1:0]	txfifo_bytes;
-	wire	[LGFIFO:0]	ign_txfifo_fill;
+	wire	[LGFIFO-$clog2(DW/8):0]	ign_txfifo_fill;
 
 	wire			tx_afifo_full, tx_afifo_rd, tx_afifo_last,
 				tx_afifo_empty;
@@ -349,7 +349,7 @@ module	sata_transport #(
 	);
 
 	sfifo #(
-		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO)
+		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO-$clog2(DW/8))
 	) rx_fifo (
 		// {{{
 		.i_clk(i_clk), .i_reset(i_reset || i_tran_abort || rxdma_reset),
@@ -456,7 +456,7 @@ module	sata_transport #(
 	);
 
 	sfifo #(
-		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO)
+		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO-$clog2(DW/8))
 	) u_txfifo (
 		// {{{
 		.i_clk(i_clk), .i_reset(i_reset || i_tran_abort || txdma_reset),

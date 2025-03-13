@@ -52,7 +52,7 @@ module	satatb_top;
 	parameter	CONSOLE_FILE="console.txt";
 	localparam	BFM_DW = 32,
 			BFM_AW = ADDRESS_WIDTH-$clog2(BFM_DW/8);
-	localparam	SATA_REFCLK_FREQ = 200;	// MHz
+	localparam	SATA_REFCLK_FREQ = 150;	// MHz
 
 	// Address map
 	// {{{
@@ -584,7 +584,7 @@ module	satatb_top;
 		// Receiver control
 		// {{{
 		.o_rx_clk(sata_rxphy_clk),
-		.o_rx_primitive(sata_rxphy_valid),
+		.o_rx_primitive(sata_rxphy_primitive),
 		.o_rx_data(sata_rxphy_data),
 		.o_syncd(sata_rxphy_valid),
 		// .o_rx_error

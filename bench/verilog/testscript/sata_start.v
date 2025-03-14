@@ -1,6 +1,43 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// Filename:	sata_start.v
+// {{{
+// Project:	A Wishbone SATA controller
+//
+// Purpose:	This module ... doesn't seem to have a purpose.  It isn't
+//		(currently) part of any simulation, and may be removed in the
+//	future.
+//
+// Creator:
+//
+////////////////////////////////////////////////////////////////////////////////
+// }}}
+// Copyright (C) 2025, Gisselquist Technology, LLC
+// {{{
+// This file is part of the WBSATA project.
+//
+// The WBSATA project is a free software (firmware) project: you may
+// redistribute it and/or modify it under the terms of  the GNU General Public
+// License as published by the Free Software Foundation, either version 3 of
+// the License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTIBILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+// for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program.  If not, please see <http://www.gnu.org/licenses/> for a
+// copy.
+// }}}
+// License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
+//		http://www.gnu.org/licenses/gpl.html
+//
+////////////////////////////////////////////////////////////////////////////////
+//
 `include "../testscript/satalib.v"
-
-
+// }}}
 module sata_soft_reset (
     input wire clk,         // Clock sinyali
     input wire reset,       // Reset sinyali

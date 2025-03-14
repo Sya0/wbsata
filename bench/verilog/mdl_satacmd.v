@@ -20,12 +20,17 @@ module mdl_satacmd (
         // }}}
     );
 
-    localparam [127:0] COMMAND_RESPOND = {
-        {8'h00, 8'h77, 4'h0, 4'h0, 8'h27},      // ERROR | STATUS | RIRR | PMPORT | FIS TYPE (0x34)
-        {8'h00, 24'h000000},                    // DEVICE | LBA[23:0]
-        {8'h00, 24'h000000},                    // FEATURES[15:8] | LBA[47:24]
-        {8'h00 ,8'h00, 16'h0000}                // CONTROL | ICC | COUNT[15:0]
-    };
+	// Remember ... the SATA spec is listed with byte 0 in bits [7:0],
+	// but we transmit big-endian, so byte 0 must be placed in the most
+	// significant bits.  This will have the appearance of swapping byte
+	// order in words.
+	localparam [127:0] COMMAND_RESPOND = {
+		// FIS TYPE (0x34) | RIRR,PMPORT | STATUS | ERROR
+		{8'h34, 4'h0, 4'h0, 8'h77, 8'h00 },
+		{8'h00, 24'h000000},		// DEVICE | LBA[23:0]
+		{8'h00, 24'h000000},		// FEATURES[15:8] | LBA[47:24]
+		{8'h00 ,8'h00, 16'h0000}	// CONTROL | ICC | COUNT[15:0]
+	};
 
     reg     known_cmd;
     reg [2:0] cnt;

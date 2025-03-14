@@ -38,10 +38,7 @@
 `default_nettype none
 `timescale	1ns/1ps
 // }}}
-module	satalnk_rmcont #(
-		parameter [32:0]	P_CONT = 33'h17caa9999,
-					P_ALIGN = 33'h1bc4a4a7b
-	) (
+module	satalnk_rmcont (
 		// {{{
 		input	wire		i_clk, i_reset,
 		//
@@ -57,6 +54,7 @@ module	satalnk_rmcont #(
 
 	// Local declarations
 	// {{{
+`include "sata_primitives.vh"
 	reg		r_active, r_align;
 	reg	[31:0]	r_last;
 	// }}}
@@ -69,14 +67,16 @@ module	satalnk_rmcont #(
 
 		if (i_valid && { i_primitive, i_data } == P_ALIGN)
 			o_valid <= 0;
-		if (i_valid && !i_primitive && r_active && r_align)
+		if (i_valid && !i_primitive && r_active)
 			o_valid <= 0;
 
 		if (i_valid && i_primitive)
 		begin
+			r_active <= 1'b0;
 			if (i_data[31:0] == P_CONT[31:0]) begin
 				r_active <= 1'b1;
 				o_data 	 <= r_last;
+				o_valid	 <= 1'b0;
 			end else begin
 				r_last   <= i_data;
 				r_align  <= (i_data == P_ALIGN[31:0]);
@@ -86,8 +86,9 @@ module	satalnk_rmcont #(
 			end
 		end else if (i_valid && r_active)
 		begin
-			// On any data, while P_CONT is active, repeat the last
-			// primitive
+			// On any data, while P_CONT is active, repeat the
+			// last primitive -- save that we'll drop o_valid,
+			// to make it easier to cross clock domains
 			o_data <= r_last;
 		end
 
@@ -97,6 +98,4 @@ module	satalnk_rmcont #(
 			o_valid  <= 0;
 		end
 	end
-
-
 endmodule

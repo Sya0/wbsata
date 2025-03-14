@@ -48,13 +48,12 @@ module	mdl_txword (
 		// {{{
 		input	wire		i_clk,
 		input	wire		i_reset,
-		input	wire	[1:0]	i_cfg_speed,//0(1.5Gb/s), 1(3Gb/s), 2(6)
 		input	wire		S_VALID,
 		output	wire		S_READY,
 		input	wire		S_CTRL,
 		input	wire	[31:0]	S_DATA,
 		//
-		output	wire		o_tx
+		output	wire	[39:0]	o_tx_word
 		// }}}
 	);
 
@@ -62,43 +61,9 @@ module	mdl_txword (
 	// {{{
 	localparam	[32:0]	P_ALIGN = { 1'b0, 8'hbc, 8'h4a, 8'h4a, 8'h7b };
 
-	wire		subbit_ready;
-	reg	[1:0]	r_subbit;
-	reg	[5:0]	r_posn;
 	reg	[32:0]	raw_dword;
-	reg	[39:0]	r_sreg;
-	wire		enc_valid, enc_ready;
+	wire		ign_enc_valid, enc_ready;
 	wire	[39:0]	enc_data;
-	// }}}
-
-	// r_subbit
-	// {{{
-	always @(posedge i_clk)
-	if (i_reset)
-		r_subbit <= 0;
-	else case(i_cfg_speed)
-	1: r_subbit <= r_subbit + 1;
-	2: r_subbit <= { r_subbit[1], 1'b0 } + 2;
-	default:
-		r_subbit <= 0;
-	endcase
-	// }}}
-
-	// r_posn
-	// {{{
-	initial	r_posn = 0;
-	always @(posedge i_clk)
-	if (i_reset)
-		r_posn <= 0;
-	else if (enc_ready)
-		r_posn <= 39;
-	else if (subbit_ready)
-	begin
-		if (r_posn > 0)
-			r_posn <= r_posn - 1;
-		else
-			r_posn <= 0;
-	end
 	// }}}
 
 	// raw_dword: P_ALIGN until we have a valid
@@ -125,29 +90,42 @@ module	mdl_txword (
 		.S_CTRL(raw_dword[32]),
 		.S_DATA(raw_dword[31:0]),
 		//
-		.M_VALID(enc_valid),
+		.M_VALID(ign_enc_valid),
 		.M_READY(enc_ready),
-		.M_DATA(enc_data)
+		.M_DATA(o_tx_word)
 	);
 	// }}}
 
-	// r_sreg
-	// {{{
-	always @(posedge i_clk)
-	if (S_READY)
-		r_sreg <= enc_data;
-	else if (subbit_ready)
-		r_sreg <= r_sreg << 1;
-	// }}}
-
-	assign	subbit_ready = (r_subbit == 0);
-	assign	enc_ready = (r_posn == 0) && subbit_ready;
-	assign	o_tx = r_sreg[39];
+	assign	enc_ready = 1'b1;
 
 	// Verilator lint_off UNUSED
-	wire	unused;
-	assign	unused = &{ 1'b0, enc_valid };
+	wire	[31:0]	test_decode;
+	wire		ign_test_ready, tst_valid, tst_illegal, tst_control;
 	// Verilator lint_on  UNUSED
+
+	mdl_s10b8bw
+	u_s10b8bw (
+		// {{{
+		.i_clk(i_clk), .i_reset(i_reset),
+		//
+		.S_VALID(ign_enc_valid),
+		.S_READY(ign_test_ready),
+		.S_DATA(o_tx_word),
+		//
+		.M_VALID(tst_valid),
+		.M_READY(1'b1),
+		.M_ILLEGAL(tst_illegal), .M_CTRL(tst_control),
+		.M_DATA(test_decode)
+		// }}}
+	);
+
+	// Make Verilator happy
+	// {{{
+	// Verilator lint_off UNUSED
+	wire	unused;
+	assign	unused = &{ 1'b0, ign_enc_valid };
+	// Verilator lint_on  UNUSED
+	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,6 +136,7 @@ module	mdl_txword (
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
+	// No properties (yet)
 `endif
 // }}}
 endmodule

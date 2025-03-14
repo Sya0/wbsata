@@ -115,7 +115,7 @@ module	satatb_top;
 	wire	[AW-1:0]		sata_ctrlw_addr;
 	wire	[DW-1:0]	sata_ctrlw_data, sata_ctrlw_idata;
 	wire	[DW/8-1:0]	sata_ctrlw_sel;
-	wire		o_lnk_up, o_lnk_ready;
+	wire		w_link_up, w_link_ready;
 
 	wire			sata_ctrl_cyc, sata_ctrl_stb, sata_ctrl_we,
 				sata_ctrl_stall, sata_ctrl_ack, sata_ctrl_err;
@@ -189,8 +189,7 @@ module	satatb_top;
 	wire		sata_phy_reset, sata_phy_ready, sata_phy_init_err;
 	wire	[31:0]	sata_txphy_data;
 	wire		sata_rxphy_elecidle, sata_rxphy_cominit,
-			sata_rxphy_comwake, sata_rxphy_cdrhold,
-			sata_rxphy_cdrlock;
+			sata_rxphy_comwake, sata_rxphy_cdrhold;
 
 	wire		sata_rxphy_clk, sata_rxphy_valid,
 			sata_rxphy_primitive;
@@ -524,8 +523,7 @@ module	satatb_top;
 		.i_rxphy_cominit(sata_rxphy_cominit),
 		.i_rxphy_comwake(sata_rxphy_comwake),
 		.o_rxphy_cdrhold(sata_rxphy_cdrhold),
-		.i_rxphy_cdrlock(sata_rxphy_cdrlock),
-		.o_lnk_up(o_lnk_up), .o_lnk_ready(o_lnk_ready)
+		.o_lnk_up(w_link_up), .o_lnk_ready(w_link_ready)
 		// }}}
 	);
 
@@ -593,7 +591,6 @@ module	satatb_top;
 		.o_rx_cominit_detect(sata_rxphy_cominit),
 		.o_rx_comwake_detect(sata_rxphy_comwake),
 		.i_rx_cdrhold(sata_rxphy_cdrhold),
-		.o_rx_cdrlock(sata_rxphy_cdrlock),
 		// }}}
 		// I/O pad connections
 		// {{{
@@ -615,10 +612,6 @@ module	satatb_top;
 	begin : GEN_SATA_MODEL
 		sata_model
 		u_sata_model (
-			.i_phy_ready(sata_phy_ready),
-			.i_comfinish(sata_txphy_comfinish),
-			.i_cominit_det(sata_rxphy_cominit), .i_comwake_det(sata_rxphy_comwake),
-			.i_oob_done(o_lnk_up), .i_link_layer_up(o_lnk_ready),
 			.i_rx_p(sata_tx_p), .i_rx_n(sata_tx_n),
 			.o_tx_p(sata_rx_p), .o_tx_n(sata_rx_n)
 		);
@@ -713,7 +706,7 @@ module	satatb_top;
 		wait(!wb_reset);
 		@(posedge wb_clk);
 
-		wait(o_lnk_ready);
+		wait(w_link_ready);
 		repeat(100)
 			@(posedge wb_clk);
 		testscript;

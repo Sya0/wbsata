@@ -35,52 +35,60 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
+`default_nettype none
+`timescale 1ns/1ps
 // }}}
-module mdl_alignp_transmit (
-    input wire clk,
-    input wire reset,
-    input wire burst_en,
-    input wire [39:0] data_p,
-    output reg tx_p,
-    output reg tx_n
-);
+module mdl_alignp_transmit #(
+		parameter WORD_SIZE = 40
+	) (
+		input	wire		i_clk,
+		input	wire		i_reset,
+		input	wire		i_elec_idle,
+		input	wire [WORD_SIZE-1:0]	i_data_p,
+		// output wire		o_ready,
+		output	reg		o_tx_p,
+		output	reg		o_tx_n
+	);
 
-    localparam ALIGNP_BIT = 40;
+	reg	[WORD_SIZE-1:0]		shift_reg;
+	reg [$clog2(WORD_SIZE+1)-1:0]	bit_count;
+	reg				r_idle;
 
-    reg [ALIGNP_BIT-1:0] shift_reg;
-    reg [5:0] bit_count;
+	always @(*)
+	if (!r_idle)
+	begin
+		// The top bit of the shift register is sent first, and
+		// so assigned to o_tx_p
+		o_tx_p =  shift_reg[WORD_SIZE-1];
 
-    always @(*) begin
-        if (burst_en) begin
-            tx_p <= shift_reg[39];   // Verinin en üst biti tx_p'ye atanır
-            tx_n <= ~shift_reg[39];  // Diferansiyel sinyal, tx_n tx_p'nin tersi olur
-        end else begin
-            tx_p <= 1'bX;
-            tx_n <= 1'bX;
-        end
-    end
+		// The differential signal, o_tx_n, is always the inverse
+		// of o_tx_p
+		o_tx_n = !shift_reg[WORD_SIZE-1];
+	end else begin
+		o_tx_p = 1'bX;
+		o_tx_n = 1'bX;
+	end
 
-    // Sinyal gönderme işlemi
-    always @(posedge clk or posedge reset) begin
-        if (reset) begin
-            shift_reg <= data_p;  // ALIGNP verisini kaydırma register'ına yükle
-            bit_count <= 0;
-        end else begin
-            if (burst_en) begin
-                // Bir bit gönder ve veriyi kaydır
-                if (bit_count == (ALIGNP_BIT-1)) begin
-                    bit_count <= 0;
-                    shift_reg <= data_p;
-                end else begin
-                    bit_count <= bit_count + 1;
-                    shift_reg <= {shift_reg[38:0], 1'b0}; // Veriyi sola kaydır
-                end
-            end else begin
-                // ALIGNP verisi bittiğinde tx_p ve tx_n'i idle seviyede tut
-                shift_reg <= data_p;  // ALIGNP verisini kaydırma register'ına yükle
-            end
-        end
-    end
-
+	// Bit counter and associated shift register
+	//	r_idle is true if we are supposed to be electrically idle
+	initial	r_idle = 1'b1;
+	always @(posedge i_clk or posedge i_reset)
+	if (i_reset)
+	begin
+		shift_reg <= 40'h0; 
+		bit_count <= 0;
+		r_idle <= 1'b1;
+	end else if (bit_count >= (WORD_SIZE-1))
+	begin
+		// Advance to the next word
+		bit_count <= 0;
+		r_idle <= i_elec_idle;
+		shift_reg <= (i_elec_idle) ? 40'h0 : i_data_p;
+	end else begin
+		// Send the next bit
+		bit_count <= bit_count + 1;
+		// Veriyi sola kaydır
+		shift_reg <= {shift_reg[WORD_SIZE-2:0], 1'b0};
+	end
 endmodule
 

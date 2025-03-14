@@ -50,7 +50,9 @@
 `timescale 1ns/1ps
 // }}}
 module mdl_srxcomsigs #(
+		// Verilator lint_off UNUSED
 		parameter	OVERSAMPLE = 4,
+		// Verilator lint_on   UNUSED
 		// The SATA SYMBOL duration is one over the symbol rate, either
 		// 1.5GHz, 3.0GHz, or 6GHz, here expressed in ns.
 		parameter	realtime	CLOCK_SYM_NS = 1000.0/1500.0
@@ -64,7 +66,7 @@ module mdl_srxcomsigs #(
 
 	// Local declarations
 	// {{{
-	localparam realtime	SAMPLE_RATE_NS = CLOCK_SYM_NS / OVERSAMPLE;
+	// localparam realtime	SAMPLE_RATE_NS = CLOCK_SYM_NS / OVERSAMPLE;
 	// localparam	TUI = OVERSAMPLE * 10 * SAMPLE_RATE_NS;
 	// localparam	T1 = 160 * TUI;
 	// localparam	T2 = 480 * TUI;
@@ -85,14 +87,11 @@ module mdl_srxcomsigs #(
 				FSM_HOSTWAKE = 4,
 				FSM_RELEASE  = 5;
 
-	localparam	[0:0]	VALID_COM = 0,
-						IDLE_COM = 1;
-
 	localparam	MSB = $clog2(RESETIDLE_MAX+1);
 	localparam	OOBMSB = 4;
 	localparam	ALIGN_COUNT = 4;
 
-	localparam [9:0] D24_3 = { 6'b110011, 4'b0011 },
+	localparam [9:0] // D24_3 = { 6'b110011, 4'b0011 },
 			K28_5 = { 6'b001111, 4'b1010 }, // Inverts disparity
 			D10_2 = { 6'b010101, 4'b0101 },	// Neutral
 			D27_3 = { 6'b001001, 4'b1100 }; // Inverts disparity
@@ -103,11 +102,9 @@ module mdl_srxcomsigs #(
 	reg		w_comwake, w_comreset;
 	reg	[OOBMSB:0]	oob_count;
 	reg	[39:0]	sreg;
-	reg	[$clog2(OVERSAMPLE)-1:0]	p;
-	reg		det_p, align_p;
-	reg		com_detect;
+	// reg	[$clog2(OVERSAMPLE)-1:0]	p;
+	reg		align_p;
 	reg	[2:0]	reset_state;
-	reg		state;
 	reg	[2:0]	align_cnt;
 	// }}}
 
@@ -120,27 +117,27 @@ module mdl_srxcomsigs #(
 		sreg <= { sreg[38:0], (i_rx_p === 1'b1) && (i_rx_n === 1'b0) };
 	end
 
-	always @(*) begin
-		det_p = (sreg == {(2){  D24_3, ~D24_3 }})	// D24.3
-			 || (sreg == {(2){ ~D24_3,  D24_3 }});
+	always @(*)
+	begin
+		// det_p = (sreg == {(2){  D24_3, ~D24_3 }})	// D24.3
+		//	 || (sreg == {(2){ ~D24_3,  D24_3 }});
 
 		align_p = (sreg ==  ALIGN_P) // ALIGN primitive
 			   || (sreg == ~ALIGN_P);
 
-		com_detect = (det_p || align_p);
+		// com_detect = (det_p || align_p);
 		valid_symbol = (i_rx_p === 1'b1 && i_rx_n === 1'b0)
 					|| (i_rx_p === 1'b0 && i_rx_n === 1'b1);
 	end
 
 	initial align_cnt = 0;
-	always @(posedge i_clk) begin
-		if (i_reset)
-			align_cnt <= 0;
-		else if (w_comreset || w_comwake)
-			align_cnt <= 0;
-		else if (align_p)
-			align_cnt <= align_cnt + 1;
-	end
+	always @(posedge i_clk or posedge i_reset)
+	if (i_reset)
+		align_cnt <= 0;
+	else if (w_comreset || w_comwake)
+		align_cnt <= 0;
+	else if (align_p && !(&align_cnt))
+		align_cnt <= align_cnt + 1;
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -173,7 +170,8 @@ module mdl_srxcomsigs #(
 	// Sometimes we cannot detect all 4 aligns because of sync of tx and 1.5gbps clks.
 	// Hence one alignment can be neglated
 	always @(*)
-		w_comreset <= (reset_state == FSM_COMRESET) && (align_cnt >= (ALIGN_COUNT-1))	// should be "== ALIGN_COUNT" !!!
+		w_comreset = (reset_state == FSM_COMRESET)
+			&& (align_cnt >= (ALIGN_COUNT-1))
 			&& (com_timeout >= COM_MIN && com_timeout  < COM_MAX)
 			&& (idle_timeout >= RESETIDLE_MIN && idle_timeout < RESETIDLE_MAX);
 
@@ -183,7 +181,8 @@ module mdl_srxcomsigs #(
 	// Sometimes we cannot detect all 4 aligns because of sync of tx and 1.5gbps clks.
 	// Hence one alignment can be neglated
 	always @(*)
-		w_comwake <= (reset_state == FSM_DEVWAKE) &&(align_cnt >= (ALIGN_COUNT-1))	// should be "== ALIGN_COUNT" !!!
+		w_comwake = (reset_state == FSM_DEVWAKE)
+			&& (align_cnt >= (ALIGN_COUNT-1))
 			&& (com_timeout  >= COM_MIN && com_timeout  < COM_MAX)
 			&& (idle_timeout >= WAKEIDLE_MIN && idle_timeout < WAKEIDLE_MAX);
 
@@ -193,34 +192,33 @@ module mdl_srxcomsigs #(
 	//
 	// COMRESET / COMWAKE : State machine
 	// {{{
-	always @(posedge i_clk)
-	if (i_reset) begin
+	always @(posedge i_clk or posedge i_reset)
+	if (i_reset)
+	begin
 		reset_state <= POR_RESET;
 		oob_count  <= 0;
 		o_comreset <= 0;
 		o_comwake  <= 0;
-	end else if (w_comreset || w_comwake) begin
+	end else if (w_comreset || w_comwake)
+	begin
 		if (!oob_count[OOBMSB])
 			oob_count <= oob_count + 1;
 	end else case(reset_state)
-		POR_RESET: begin
+	POR_RESET: begin
 			reset_state <= FSM_COMRESET;
 			oob_count 	<= 0;
 			o_comreset  <= 1'b0;
 			o_comwake	<= 1'b0;
 		end
-		FSM_COMRESET: begin
-			if (oob_count == RESET_BURSTS) begin
+	FSM_COMRESET: if (oob_count == RESET_BURSTS)
+			begin
 				reset_state <= FSM_HOSTINIT;
 				oob_count 	<= 0;
 				o_comreset  <= 1'b1;
 			end
-		end
-		FSM_HOSTINIT: begin
-			if (i_cominit_det)
-				reset_state <= FSM_DEVWAKE;
-		end
-		FSM_DEVWAKE: begin
+	FSM_HOSTINIT: if (i_cominit_det)
+			reset_state <= FSM_DEVWAKE;
+	FSM_DEVWAKE: begin
 			o_comreset <= 1'b0;
 			if (oob_count == WAKE_BURSTS) begin
 				reset_state <= FSM_HOSTWAKE;
@@ -228,17 +226,15 @@ module mdl_srxcomsigs #(
 				o_comwake   <= 1'b1;
 			end
 		end
-		FSM_HOSTWAKE: begin
-			if (i_comwake_det)
-				reset_state <= FSM_RELEASE;
-		end
-		FSM_RELEASE: begin
+	FSM_HOSTWAKE: if (i_comwake_det)
+			reset_state <= FSM_RELEASE;
+	FSM_RELEASE: begin
 			o_comwake <= 0;
 			o_comreset <= 0;
 			oob_count  <= 0;
 			reset_state <= FSM_RELEASE;
 		end
-		default: begin
+	default: begin
 			// Will never get here
 			reset_state <= POR_RESET;
 			oob_count <= 0;

@@ -49,7 +49,6 @@
 module	sata_phy #(
 		// {{{
 		parameter	REFCLK_FREQUENCY = 150,	// MHz
-		parameter [0:0]	OPT_LITTLE_ENDIAN = 1'b1,
 		parameter [0:0]	OPT_RXBUFFER = 1'b1,
 		parameter [0:0]	OPT_TXBUFFER = 1'b1,
 		parameter [0:0]	OPT_AUTO_ALIGN = 1'b1,	// Detect & ALIGN_p
@@ -96,7 +95,6 @@ module	sata_phy #(
 		output	wire		o_rx_cominit_detect,
 		output	wire		o_rx_comwake_detect,
 		input	wire		i_rx_cdrhold,
-		output	wire		o_rx_cdrlock,
 		// }}}
 		//
 		// COMFINISH
@@ -114,7 +112,7 @@ module	sata_phy #(
 	// {{{
 	localparam [0:0]	USE_QPLL = (REFCLK_FREQUENCY == 150);
 	wire		i_realign, syncd, resyncd, rx_polarity,
-			tx_polarity, rx_cdr_hold, raw_tx_clk;
+			tx_polarity, raw_tx_clk;
 	wire		power_down, tx_pll_lock;
 	wire		cpll_locked, ign_rx_comma, pll_locked, cpll_reset;
 	wire	[63:0]	raw_rx_data;
@@ -126,7 +124,6 @@ module	sata_phy #(
 	assign	tx_polarity = 1'b0;	// Normal polarity
 	assign	i_realign = 1'b1;	// Always re-align
 	assign	power_down = qpll_reset;
-	assign	rx_cdr_hold = 1'b0;
 
 	assign	o_syncd = syncd && !resyncd;
 	assign	o_rx_error = (|rx_disparity_err[7:0])
@@ -160,6 +157,8 @@ module	sata_phy #(
 
 	wire	tx_pll_reset, tx_gtx_reset, tx_reset_done,
 		tx_user_ready, tx_watchdog_err;
+	reg	rx_cdr_ovrden, rx_cdr_gtx_reset;
+	reg	[4:0]	rx_cdr_count;
 
 	// First, reset the QPLL
 	// {{{
@@ -226,6 +225,32 @@ module	sata_phy #(
 
 	assign	rx_aligned = rx_align_count[1] && rx_align_edges[1];
 	// }}}
+
+	initial	rx_cdr_count  = 0;
+	initial	rx_cdr_gtx_reset = 0;
+	initial	rx_cdr_ovrden = 0;
+	/*
+	initial	rx_cdr_count = 30;
+	initial	rx_cdr_gtx_reset = 1'b0;
+	always @(posedge i_wb_clk)
+	if (i_reset)
+	begin
+		rx_cdr_ovrden <= 1'b0;
+		rx_cdr_count  <= 30;
+		rx_cdr_gtx_reset <= 1'b0;
+	end else if (i_rx_cdrhold)
+	begin
+		rx_cdr_ovrden <= 1'b1;
+		rx_cdr_count  <= 30;
+		rx_cdr_gtx_reset <= 1'b0;
+	end else if (rx_cdr_count > 0)
+	begin
+		rx_cdr_count <= rx_cdr_count - 1;
+		rx_cdr_ovrden <= (rx_cdr_count > 5);
+		// rx_cdr_gtx_reset <= (rx_cdr_count > 1)&&(rx_cdr_count <= 3);
+		rx_cdr_gtx_reset <= 1'b0;
+	end
+	*/
 
 	sata_phyinit #(
 		.OPT_WAIT_ON_ALIGN(1'b0)
@@ -865,7 +890,7 @@ module	sata_phy #(
 		// }}}
 		// RX Init and reset ports
 		// {{{
-		.GTRXRESET(rx_gtx_reset),
+		.GTRXRESET(rx_gtx_reset || rx_cdr_gtx_reset),
 		.RXPMARESET(1'b0),
 		.RXCDRRESET(1'b0),
 		.RXCDRFREQRESET(1'b0),
@@ -986,10 +1011,10 @@ module	sata_phy #(
 		// RX Clock data recovery
 		// {{{
 		.RXCDRHOLD(i_rx_cdrhold),	// i_rx_cdrhold
-		.RXCDROVRDEN(1'b0),
+		.RXCDROVRDEN(1'b0 && rx_cdr_ovrden),
 		.RXCDRRESETRSV(1'b0),
 		.RXRATE(3'h0), // (SATA_GEN==3) ? 3'd2 : (SATA_GEN==2) ? 3'd3 : 3'd4),
-		.RXCDRLOCK(),	// Open / no connect
+		.RXCDRLOCK(rx_cdr_lock),	// Xilinx doesn't support this
 		// }}}
 		// RX Fabric clock output control ports
 		// {{{
@@ -1203,10 +1228,15 @@ module	sata_phy #(
 
 	// }}}
 
-	assign	o_rx_primitive = rx_char_is_k[3];
-	assign	o_rx_data = OPT_LITTLE_ENDIAN ? raw_rx_data[31:0]
-			: { raw_rx_data[7:0], raw_rx_data[15:8],
-				raw_rx_data[23:16], raw_rx_data[31:24] };
+	// Verilator lint_off UNUSED
+	reg	[8:0]	last_rx_data;
+	// Verilator lint_on  UNUSED
+	always @(posedge o_rx_clk)
+		last_rx_data <= { rx_char_is_k[3], raw_rx_data[31:24] };
+
+	assign	o_rx_primitive = last_rx_data[8];
+	assign	o_rx_data = { last_rx_data[7:0], raw_rx_data[7:0],
+				raw_rx_data[15:8], raw_rx_data[23:16] };
 
 `ifdef	IVERILOG
 	assign	o_rx_clk = rx_clk_unbuffered;

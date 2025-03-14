@@ -126,6 +126,7 @@ module	satalnk_fsm (
 	reg	r_ready;
 	wire		i_rx_primitive;
 	reg	[4:0]	link_state;
+	// }}}
 
 	assign	i_rx_primitive = i_rx_data[32];
 

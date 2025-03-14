@@ -43,107 +43,65 @@ module	mdl_scomfsm #(
 		parameter realtime	CLOCK_SYM_NS = 1000.0 / 1500.0
 	) (
 		// {{{
-		input	wire	i_txclk, i_reset,
+		input	wire		i_txclk, i_reset,
 		output	reg		o_reset,
-		input	wire	i_comfinish,
-		input	wire	i_cominit_det, i_comwake_det,
-		input	wire	i_oob_done, i_link_layer_up,
-		input	wire	i_rx_p, i_rx_n,
-		input	wire	i_tx,
-		output	wire	o_tx_p, o_tx_n
+		// input wire		i_comfinish,
+		// input wire		i_cominit_det, i_comwake_det,
+		// input wire		i_oob_done, i_link_layer_up,
+		input	wire		i_rx_p, i_rx_n,
+		input	wire	[39:0]	i_tx_word,
+		output	wire		o_tx_p, o_tx_n
 		// }}}
 	);
 
 	// Local decalarations
 	// {{{
-	localparam	[0:0]	OOB = 1'h0,
-						ACTIVE_TRANSACTION = 1'h1;
+	// localparam P_BITS = 40;
+	// localparam [(P_BITS/4)-1:0] D21_4 = 10'b1010101101;
+	// localparam [(P_BITS/4)-1:0] K28_3 = 10'b0011110011;
+	// localparam [(P_BITS/4)-1:0] D21_5 = 10'b1010101010;
 
-	localparam P_BITS = 40;
-    localparam [(P_BITS/4)-1:0] D21_4 = 10'b1010101101;
-    localparam [(P_BITS/4)-1:0] K28_3 = 10'b0011110011;
-    localparam [(P_BITS/4)-1:0] D21_5 = 10'b1010101010;
+	// localparam [P_BITS-1:0] SYNC_P = { D21_5, D21_5, D21_4, K28_3 };
 
-    localparam [P_BITS-1:0] SYNC_P = { D21_5, D21_5, D21_4, K28_3 };
-
-	wire	oob_tx_p, oob_tx_n;
-	reg	[0:0]	fsm_state;
-	reg		r_tx, r_oob;
-	wire	w_comwake, w_comreset;
-	reg [39:0] oob_reg, link_reg;
-	wire 	oob_sync_true, link_sync_true;
-	wire	done;
+	// wire	w_comwake, w_comreset;
+	wire	oob_done;
 	// }}}
 
 	// OOB
 	// {{{
-	mdl_oob u_oob (
+	mdl_oob
+	u_oob (
 		.i_clk(i_txclk),
-		.i_rst(i_reset),
-    	.i_comfinish(i_comfinish),
-		.i_comreset_det(w_comreset),
-		.i_comwake_dev(w_comwake),
-		.i_comwake_det(i_comwake_det),
-		.i_oob_done(i_oob_done),
-		.i_link_layer_up(i_link_layer_up),
-		.o_done(done),
-	    .o_tx_p(oob_tx_p),
-        .o_tx_n(oob_tx_n)
-    );
+		.i_reset(i_reset),
+		.i_rx(i_rx_p),
+		.i_data_word(i_tx_word),
+		.o_done(oob_done),
+		.o_tx_p(o_tx_p),
+		.o_tx_n(o_tx_n)
+	);
 	// }}}
 
+/*
 	mdl_srxcomsigs #(
 		.OVERSAMPLE(4), .CLOCK_SYM_NS(CLOCK_SYM_NS)
 	) u_comdet (
 		.i_clk(i_txclk),
 		.i_reset(i_reset),
 		.i_rx_p(i_rx_p), .i_rx_n(i_rx_n),
-		.i_cominit_det(i_cominit_det), .i_comwake_det(i_comwake_det),
+		// .i_cominit_det(i_cominit_det), .i_comwake_det(i_comwake_det),
 		.o_comwake(w_comwake), .o_comreset(w_comreset)
 	);
+*/
 
 	always @(posedge i_txclk or i_reset)
 	if (i_reset)
 	begin
-		fsm_state <= OOB;
-		r_tx <= 1'bX;
-		r_oob <= 1'b1;
 		o_reset <= 1'b1;
-	end else case(fsm_state)
-		OOB: begin
-		// {{{
-			r_tx <= 1'bX;
-			r_oob <= 1'b1;
-			o_reset <= 1'b1;
-			if (i_link_layer_up) begin
-				fsm_state <= ACTIVE_TRANSACTION;
-				r_tx <= i_tx;
-				r_oob <= 1'b0;
-				o_reset <= 1'b0;
-			end
-		end
-		ACTIVE_TRANSACTION: begin
-		// {{{
-			r_tx <= i_tx;
-			r_oob <= 1'b0;
-			o_reset <= 1'b0;
-		// }}}
-		end
-	endcase
+	end else if (oob_done)
+		o_reset <= 1'b0;
 
-	always @(posedge i_txclk or i_reset)
-	if (i_reset) begin
-		oob_reg <= 0;
-		link_reg <= 0;	
-	end else begin
-		oob_reg <= { oob_reg[38:0], oob_tx_p };
-		link_reg <= { link_reg[38:0], r_tx };
-	end
-
-	assign	oob_sync_true = (oob_reg == SYNC_P) ? 1 : 0;
-	assign	link_sync_true = (link_reg == SYNC_P) ? 1 : 0;
-
-	assign	o_tx_p = (r_oob) ? oob_tx_p :  r_tx;
-	assign	o_tx_n = (r_oob) ? oob_tx_n : !r_tx;
-
+	// Verilator lint_off UNUSED
+	wire	unused;
+	assign	unused = &{ 1'b0 };
+	// Verilator lint_on  UNUSED
 endmodule

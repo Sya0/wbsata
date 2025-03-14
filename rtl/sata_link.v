@@ -201,8 +201,8 @@ module	sata_link #(
 	//
 	//
 
-	satalnk_fsm #(
-	) link_fsm (
+	satalnk_fsm
+	link_fsm (
 		// {{{
 		.i_clk(i_tx_clk), .i_reset(i_reset),
 		//

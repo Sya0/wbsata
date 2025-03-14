@@ -74,16 +74,16 @@ module	satalnk_rmcont #(
 
 		if (i_valid && i_primitive)
 		begin
-			if (i_data[31:0] == P_CONT[31:0])
+			if (i_data[31:0] == P_CONT[31:0]) begin
 				r_active <= 1'b1;
-			else begin
+				o_data 	 <= r_last;
+			end else begin
 				r_last   <= i_data;
 				r_align  <= (i_data == P_ALIGN[31:0]);
 				r_active <= 1'b0;
+				// Always pass primitives forward
+				o_data 	 <= i_data;
 			end
-
-			// Always pass primitives forward
-			o_data <= i_data;
 		end else if (i_valid && r_active)
 		begin
 			// On any data, while P_CONT is active, repeat the last

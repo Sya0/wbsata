@@ -60,7 +60,6 @@ module	sata_reset #(
 		input	wire	i_rx_cominit,
 		input	wire	i_rx_comwake,
 		output	reg		o_rx_cdrhold,	// Freeze RX clk+data ctrl loop
-		input	wire	i_rx_cdrlock,	// Clock and data lock indicator
 		//
 		input	wire		i_tx_primitive,
 		input	wire	[31:0]	i_tx_data,
@@ -102,9 +101,9 @@ module	sata_reset #(
 
 	wire		rx_elecidle, rx_cominit, rx_comwake;
 	reg	[1:0]	pipe_rx_elecidle, pipe_rx_cominit, pipe_rx_comwake,
-			pipe_rx_cdrlock, pipe_phy_ready, pipe_rx_align;
+			pipe_phy_ready, pipe_rx_align;
 	reg		ck_rx_elecidle, ck_rx_cominit, ck_rx_comwake,
-			ck_rx_cdrlock, ck_phy_ready, ck_rx_align;
+			ck_phy_ready, ck_rx_align;
 
 	reg	[3:0]	fsm_state;
 
@@ -183,7 +182,6 @@ module	sata_reset #(
 		{ ck_rx_elecidle, pipe_rx_elecidle } <= 0;
 		{ ck_rx_cominit, pipe_rx_cominit } <= 0;
 		{ ck_rx_comwake, pipe_rx_comwake } <= 0;
-		{ ck_rx_cdrlock, pipe_rx_cdrlock } <= 0;
 		{ ck_phy_ready,  pipe_phy_ready } <= 0;
 	end else begin
 		{ ck_rx_elecidle, pipe_rx_elecidle }
@@ -192,9 +190,6 @@ module	sata_reset #(
 					<= { pipe_rx_cominit, rx_cominit };
 		{ ck_rx_comwake, pipe_rx_comwake }
 					<= { pipe_rx_comwake, rx_comwake };
-
-		{ ck_rx_cdrlock, pipe_rx_cdrlock }
-					<= { pipe_rx_cdrlock, i_rx_cdrlock };
 
 		{ ck_phy_ready, pipe_phy_ready }
 					<= { pipe_phy_ready, i_phy_ready };
@@ -357,6 +352,7 @@ module	sata_reset #(
 			// {{{
 			o_link_up <= 1'b1;
 			o_tx_elecidle <= 1'b0;
+			o_rx_cdrhold   <= 1'b0;
 			{ o_phy_primitive, o_phy_data }
 					<= { o_phy_primitive, o_phy_data };
 			if (o_tx_ready)
@@ -375,6 +371,7 @@ module	sata_reset #(
 			// COMRESET.
 			o_link_up <= 1'b0;
 			o_tx_elecidle <= 1'b1;
+			o_rx_cdrhold   <= 1'b0;
 			if (!ck_rx_cominit)
 				fsm_state <= HR_RESET;
 			end
@@ -439,7 +436,7 @@ module	sata_reset #(
 	// {{{
 	// Verilator lint_off UNUSED
 	wire	unused;
-	assign	unused = &{ 1'b0, ck_rx_cdrlock };
+	assign	unused = &{ 1'b0 };
 	// Verilator lint_on  UNUSED
 	// }}}
 endmodule

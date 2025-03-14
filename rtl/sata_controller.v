@@ -98,7 +98,6 @@ module	sata_controller #(
 		input	wire		i_rxphy_cominit,
 		input	wire		i_rxphy_comwake,
 		output	wire		o_rxphy_cdrhold,
-		input	wire		i_rxphy_cdrlock,
 		//
 		output	wire		o_phy_reset,
 		input	wire		i_phy_ready,
@@ -271,7 +270,6 @@ module	sata_controller #(
 		.i_rx_elecidle(i_rxphy_elecidle),
 		.i_rx_cominit(i_rxphy_cominit),
 		.i_rx_comwake(i_rxphy_comwake),
-		.i_rx_cdrlock(i_rxphy_cdrlock),
 		// }}}
 		// Data
 		// {{{

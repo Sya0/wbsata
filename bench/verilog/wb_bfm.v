@@ -166,7 +166,8 @@ module	wb_bfm #(
 			if (o_wb_cyc && i_wb_err)
 				err_flag <= 1'b1;
 		end wait(!i_clk);
-		while(!err_flag && o_wb_cyc);
+
+		while(!err_flag && o_wb_cyc)
 		begin
 			@(posedge i_clk)
 			begin

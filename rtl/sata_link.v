@@ -130,9 +130,8 @@ module	sata_link #(
 
 	// 1. Remove any received continue and align primitives
 	// {{{
-	satalnk_rmcont #(
-		.P_CONT(P_CONT), .P_ALIGN(P_ALIGN)
-	) rm_align (
+	satalnk_rmcont
+	rm_align (
 		.i_clk(i_rx_clk), .i_reset(!rx_reset_n),
 		//
 		.i_valid(i_rx_valid), .i_primitive(i_rx_data[32]),

@@ -598,15 +598,15 @@ module	satalnk_fsm (
 		o_debug[18] <= s_success;
 		o_debug[17] <= s_failed;
 
-		o_debug[18] <= m_full;
-		o_debug[17] <= m_empty;
-		o_debug[16] <= m_last;
-		o_debug[15] <= m_abort;
-		o_debug[14] <= o_error;
-		o_debug[13] <= o_ready;
+		o_debug[16] <= m_full;
+		o_debug[15] <= m_empty;
+		o_debug[14] <= m_last;
+		o_debug[13] <= m_abort;
+		o_debug[12] <= o_error;
+		o_debug[11] <= o_ready;
 
-		o_debug[12:9] <= rx_pdecode;
-		o_debug[ 8:5] <= tx_pdecode;
+		o_debug[10:7] <= rx_pdecode;
+		o_debug[ 6:3] <= tx_pdecode;
 	end
 	// }}}
 

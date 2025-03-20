@@ -88,8 +88,9 @@ module	sata_link #(
 		output	wire		o_phy_primitive,
 		output	wire	[31:0]	o_phy_data,
 		output	wire		o_phy_reset,
-		input	wire		i_phy_ready
+		input	wire		i_phy_ready,
 		// }}}
+		output	wire	[31:0]	o_debug
 		// }}}
 	);
 
@@ -225,7 +226,9 @@ module	sata_link #(
 		.m_phy_valid(pre_phy_valid), .m_phy_ready(pre_phy_ready),
 		.m_phy_data(pre_phy_data),
 		//
-		.o_phy_reset(o_phy_reset), .i_phy_ready(i_phy_ready)
+		.o_phy_reset(o_phy_reset), .i_phy_ready(i_phy_ready),
+		//
+		.o_debug(o_debug)
 		// }}}
 	);
 

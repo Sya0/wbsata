@@ -43,6 +43,7 @@
 module	sata_reset #(
 		parameter real	CLOCK_FREQUENCY_HZ = 75e6	// GEN 1
 	) (
+		// {{{
 		input	wire	i_tx_clk,
 		input	wire	i_rx_clk,
 		// Verilator lint_off SYNCASYNCNET
@@ -71,9 +72,15 @@ module	sata_reset #(
 		input	wire		i_rx_valid,
 		input	wire	[32:0]	i_rx_data,
 		//
-		output	reg		o_link_up
+		output	reg		o_link_up,
+		//
+		// o_debug is set to the tx_clk domain
+		output	reg	[31:0]	o_debug
+		// }}}
 	);
 
+	// Local declarations
+	// {{{
 `include "sata_primitives.vh"
 
 	localparam [3:0]	HR_RESET	= 4'h0,
@@ -118,6 +125,8 @@ module	sata_reset #(
 	reg	[LGALIGN-1:0]	min_alignment_counter;
 	reg			check_alignment;
 
+	reg	[3:0]	pdecode;	// Only used for debug
+	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Move the RX COM detect signals to the TX clock domain
@@ -429,6 +438,60 @@ module	sata_reset #(
 	begin
 		min_alignment_counter <= min_alignment_counter - 1;
 		check_alignment <= (min_alignment_counter <= 1);
+	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Generate a debugging output -- in the TX clock domain
+	// {{{
+	always @(*)
+	begin
+		pdecode = 0;
+		if (i_tx_data == P_ALIGN[31:0])  pdecode = 1;
+		if (i_tx_data == P_CONT[31:0])   pdecode = pdecode | 2;
+		if (i_tx_data == P_DMAT[31:0])   pdecode = pdecode | 3;
+		if (i_tx_data == P_EOF[31:0])    pdecode = pdecode | 4;
+		if (i_tx_data == P_HOLD[31:0])   pdecode = pdecode | 5;
+		if (i_tx_data == P_HOLDA[31:0])  pdecode = pdecode | 6;
+		if (i_tx_data == P_SOF[31:0])    pdecode = pdecode | 7;
+		if (i_tx_data == P_SYNC[31:0])   pdecode = pdecode | 8;
+		if (i_tx_data == P_R_IP[31:0])   pdecode = pdecode | 9;
+		if (i_tx_data == P_R_OK[31:0])   pdecode = pdecode | 10;
+		if (i_tx_data == P_R_RDY[31:0])  pdecode = pdecode | 11;
+		if (i_tx_data == P_X_RDY[31:0])  pdecode = pdecode | 12;
+		if (i_tx_data == P_R_ERR[31:0])  pdecode = pdecode | 13;
+		if (i_tx_data == P_WTRM[31:0])   pdecode = pdecode | 14;
+
+		if (!i_tx_primitive)
+			pdecode = 4'hf;
+	end
+
+	always @(posedge i_tx_clk)
+	begin
+		o_debug <= 0; // Default everything to zero
+
+		// Any change in link up is a reason to trigger the scope
+		o_debug[31] <= (o_tx_ready != o_debug[16]);
+
+		o_debug[23] <= o_phy_primitive;
+		o_debug[22] <= o_link_up;
+		o_debug[21:18] <= pdecode;
+		o_debug[17] <= i_tx_primitive;
+		o_debug[16] <= o_tx_ready;
+		o_debug[15] <= o_tx_elecidle;
+		o_debug[14] <= o_tx_cominit;
+		o_debug[13] <= o_tx_comwake;
+		o_debug[12] <= i_tx_comfinish;
+		o_debug[11] <= ck_rx_elecidle;
+		o_debug[10] <= ck_rx_cominit;
+		o_debug[9] <= ck_rx_comwake;
+		o_debug[8] <= ck_phy_ready;
+		o_debug[7] <= ck_rx_align;
+		o_debug[6] <= retry_timeout;
+		o_debug[5] <= (watchdog_counter < WATCHDOG_TIMEOUT[LGWATCHDOG-1:0]);
+		o_debug[4] <= check_alignment;
+		// check_alignment
+		o_debug[3:0] <= fsm_state;
 	end
 	// }}}
 

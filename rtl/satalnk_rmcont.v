@@ -55,7 +55,7 @@ module	satalnk_rmcont (
 	// Local declarations
 	// {{{
 `include "sata_primitives.vh"
-	reg		r_active, r_align;
+	reg		r_active; // r_align;
 	reg	[31:0]	r_last;
 	// }}}
 
@@ -79,7 +79,7 @@ module	satalnk_rmcont (
 				o_valid	 <= 1'b0;
 			end else begin
 				r_last   <= i_data;
-				r_align  <= (i_data == P_ALIGN[31:0]);
+				// r_align  <= (i_data == P_ALIGN[31:0]);
 				r_active <= 1'b0;
 				// Always pass primitives forward
 				o_data 	 <= i_data;

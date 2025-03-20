@@ -107,8 +107,9 @@ module	sata_transport #(
 		input	wire		i_tran_abort,
 		// Verilator lint_on  SYNCASYNCNET
 		//
-		input	wire		i_link_err, i_link_ready
+		input	wire		i_link_err, i_link_ready,
 		// }}}
+		output	wire	[31:0]	o_debug
 		// }}}
 	);
 
@@ -287,8 +288,9 @@ module	sata_transport #(
 		.o_mm2s_request(mm2s_core_request),
 		.i_mm2s_busy(mm2s_core_busy),
 		.i_mm2s_err(mm2s_core_err),
-		.o_mm2s_addr(mm2s_core_addr)
+		.o_mm2s_addr(mm2s_core_addr),
 		// }}}
+		.o_debug(o_debug)
 	);
 
 	// }}}

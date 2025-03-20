@@ -104,8 +104,9 @@ module	satatrn_fsm #(
 		// {{{
 		output	reg			o_mm2s_request,
 		input	wire			i_mm2s_busy, i_mm2s_err,
-		output reg [ADDRESS_WIDTH-1:0]	o_mm2s_addr
+		output reg [ADDRESS_WIDTH-1:0]	o_mm2s_addr,
 		// }}}
+		output	reg	[31:0]		o_debug
 		// }}}
 	);
 
@@ -712,10 +713,14 @@ module	satatrn_fsm #(
 	reg	[1:0]	m_count;
 
 	always @(posedge i_clk)
-	if (i_reset || o_tran_req || o_tran_src == SRC_REGS)
+	if (i_reset)
 	begin
 		{ m_valid, m_count } <= 0;
-		m_last <= i_reset;
+		m_last <= 1'b1;
+	end else if (o_tran_req && o_tran_src == SRC_REGS)
+	begin
+		{ m_valid, m_count } <= 0;
+		m_last <= 1'b0;	// Start a packet
 	end else if (!m_valid || m_ready)
 	begin
 		m_valid <= !m_last;
@@ -759,7 +764,7 @@ module	satatrn_fsm #(
 		o_wb_ack <= i_wb_stb && !o_wb_stall;
 
 	always @(posedge i_clk)
-	if (OPT_LOWPOWER && (i_reset || !i_wb_stb))
+	if (OPT_LOWPOWER && (i_reset || !i_wb_stb || i_wb_we))
 		o_wb_data <= 32'b0;
 	else begin
 		o_wb_data <= 32'h0;
@@ -779,6 +784,45 @@ module	satatrn_fsm #(
 	// }}}
 
 	assign	o_int = r_int || return_to_idle;
+	////////////////////////////////////////////////////////////////////////
+	//
+	// o_debug
+	// {{{
+	always @(posedge i_clk)
+	begin
+		o_debug <= 0;
+
+		o_debug[31] <= s_pkt_valid;
+
+		o_debug[30:27] <= fsm_state;
+		o_debug[26] <= i_mm2s_busy;
+		o_debug[25] <= i_mm2s_err;
+
+		o_debug[24] <= o_s2mm_request || o_mm2s_request;
+		o_debug[23] <= i_s2mm_busy;
+		o_debug[22] <= i_s2mm_err;
+		o_debug[21] <= i_s2mm_beat;
+		//
+		o_debug[20] <= i_wb_stb;
+		o_debug[19] <= i_wb_we;
+		o_debug[18] <= o_tran_req;
+		o_debug[17] <= i_tran_busy;
+		o_debug[16] <= i_tran_err;
+		o_debug[15] <= o_tran_src;
+		o_debug[14] <= o_int;
+		o_debug[13] <= i_link_up;
+		o_debug[12] <= m_valid;
+		o_debug[11] <= m_ready;
+		o_debug[10] <= m_last;
+		o_debug[ 9] <= s_pkt_valid;
+		o_debug[ 8] <= s_last;
+
+		if (s_pkt_valid)
+			o_debug[7:0] <= s_brdata[7:0];
+		else
+			o_debug[7:0] <= m_data[31:24];
+	end
+	// }}}
 
 	// Keep Verilator happy
 	// {{{

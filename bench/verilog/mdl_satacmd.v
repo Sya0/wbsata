@@ -14,8 +14,8 @@ module mdl_satacmd (
 		//
 		output	reg		    m_valid,
 		input	wire		m_ready,
-		output	wire [31:0]	m_data,
-		output	wire		m_last
+		output	reg [31:0]	m_data,
+		output	reg 		m_last
 		// output wire		m_abort	// TX aborts
         // }}}
     );
@@ -24,6 +24,7 @@ module mdl_satacmd (
     localparam [7:0] FIS_TYPE_REG_H2D  = 8'h27;  // Host to Device Register FIS
     localparam [7:0] FIS_TYPE_REG_D2H  = 8'h34;  // Device to Host Register FIS
     localparam [7:0] FIS_TYPE_DATA     = 8'h46;  // Data FIS
+    localparam [7:0] FIS_TYPE_DMA_ACT  = 8'h39;  // DMA Activate FIS
 
     // ATA Commands
     localparam [7:0] CMD_READ_DMA      = 8'hC8;  // Read DMA
@@ -52,22 +53,17 @@ module mdl_satacmd (
     reg     known_cmd;
     reg [2:0] cnt;
     reg [127:0] response;
-
-    // Storage for SATA disk data - support up to 16MB (32K sectors)
-    // This is organized as a sparse array to save memory in simulation
-    // We'll use a 512-byte sector size as standard
-    reg [7:0] sector_storage[0:MAX_STORAGE_SIZE-1]; // 16MB storage
+    reg [7:0] sector_storage[0:MAX_STORAGE_SIZE-1];
 
     // Command processing state
     reg [7:0] current_command;   // Current ATA command being processed
     reg [27:0] current_lba;      // Current LBA for the command (28-bit)
     reg [7:0] current_count;     // Sector count for the command (8-bit)
-    reg [7:0] current_device;    // Device register value
-    reg [1:0]  reg_fis_word;     // Tracks which word of the Register FIS is being processed
 
     // DMA data transfer state
     reg dma_write_active;        // Flag for active DMA write operation
     reg dma_read_active;         // Flag for active DMA read operation
+    reg sending_dma_activate;    // Flag for active DMA Activate operation
     reg [31:0] dma_word_counter; // Count bytes received/sent in current DMA transfer
     reg [31:0] dma_sector_bytes; // Total bytes to transfer in current operation
 
@@ -97,15 +93,12 @@ module mdl_satacmd (
             dma_write_active <= 0;
             dma_read_active <= 0;
             current_command <= 8'h00;
-            current_device <= 8'h00;
-            reg_fis_word <= 0;
         end
         else if (s_valid) begin
             // Check if this is a Register FIS (Host to Device) containing a command
             if (s_data[31:24] == FIS_TYPE_REG_H2D) begin
                 // Extract command from the register FIS
                 current_command <= s_data[15:8];
-                current_device <= s_data[23:16];
 
                 case(s_data[15:8])
                 8'h00, 8'h0b, 8'h40, 8'h42, 8'h44, 8'h45, 8'h51, 8'h63,
@@ -211,49 +204,10 @@ module mdl_satacmd (
                 endcase
             end
 
-            // Process the Register FIS data words to extract LBA and count
-            // This assumes a standard format where word 1 contains LBA[23:0]
-            // and word 3 contains the count
-            if (s_data[31:24] == FIS_TYPE_REG_H2D) begin
-                // First word of Register FIS already processed above
-                // Store the command parameters as they come in
-                if (reg_fis_word == 0) begin
-                    // First word already processed for command code
-                    reg_fis_word <= 1;
-                end
-                else if (reg_fis_word == 1) begin
-                    // Second word: DEVICE | LBA[23:0]
-                    current_lba[23:0] <= s_data[31:8];
-                    reg_fis_word <= 2;
-                end
-                else if (reg_fis_word == 2) begin
-                    // Third word: FEATURES[15:8] | LBA[47:24]
-                    reg_fis_word <= 3;
-                end
-                else if (reg_fis_word == 3) begin
-                    // Fourth word: CONTROL | ICC | COUNT[15:0]
-                    if (current_command == CMD_WRITE_DMA) begin
-                        current_count <= s_data[31:24];  // 8-bit count
-                        dma_sector_bytes <= {24'h0, s_data[31:24]} * SECTOR_SIZE;  // Convert to bytes
-                    end
-                    else if (current_command == CMD_READ_DMA) begin
-                        current_count <= s_data[31:24];  // 8-bit count
-                        dma_sector_bytes <= {24'h0, s_data[31:24]} * SECTOR_SIZE;  // Convert to bytes
-                    end
-
-                    reg_fis_word <= 0;
-                    dma_word_counter <= 0;
-
-                    $display("SATA MODEL: Command %h, LBA=%h, Count=%d",
-                              current_command, current_lba, s_data[31:24]);
-                end
-            end
-
             if (dma_write_active && s_data[31:24] == FIS_TYPE_DATA) begin // DATA FIS
                 data_fis_index <= 0;
                 $display("SATA MODEL: Receiving DATA FIS for Write DMA");
-            end
-            else if (dma_write_active && data_fis_index < MAX_DATA_FIS_SIZE) begin
+            end else if (dma_write_active && data_fis_index < MAX_DATA_FIS_SIZE) begin
                 // Store the data word in our buffer
                 data_fis_buffer[data_fis_index] <= s_data;
                 data_fis_index <= data_fis_index + 1;
@@ -285,13 +239,13 @@ module mdl_satacmd (
                 end
             end
 
-            if (s_last) begin
-                // Reset FIS processing state for the next FIS
-                if (dma_write_active && s_data[31:24] != FIS_TYPE_DATA) begin
-                    // The last word wasn't part of a Data FIS, so this is end of command
-                    dma_write_active <= 0;
-                end
-            end
+            // if (s_last) begin
+            //     // Reset FIS processing state for the next FIS
+            //     if (dma_write_active && s_data[31:24] == FIS_TYPE_DATA) begin
+            //         // The last word wasn't part of a Data FIS, so this is end of command
+            //         dma_write_active <= 0;
+            //     end
+            // end
         end
     end
 
@@ -303,49 +257,71 @@ module mdl_satacmd (
             m_valid <= 1'b1;
         else if (m_valid && m_last)
             m_valid <= 1'b0;
+        else if (sending_dma_activate)
+            m_valid <= 1'b1;
     end
 
-    // m_last, cnt, m_data, response
+    // cnt, response, sending_dma_activate
     always @(posedge i_tx_clk) begin
         if (i_reset) begin
+            sending_dma_activate <= 1'b0;
             cnt <= 0;
             response <= COMMAND_RESPONSE;
-        end
-        else if (s_valid && s_last && !s_abort) begin
+        end else if (s_valid && s_last && !s_abort) begin
             cnt <= 1;
             response <= COMMAND_RESPONSE;
-
-            // Special handling for READ DMA to prepare the data
-            if (current_command == CMD_READ_DMA && dma_read_active) begin
-                // For READ DMA, we'll need to return:
-                // 1. D2H Register FIS with status (already in response)
-                // 2. Then a Data FIS with the actual data
-                $display("SATA MODEL: Preparing to send READ DMA data for %d sectors from LBA %h",
-                         current_count, current_lba);
-            end
-        end
-        else if (cnt > 0) begin
+        end else if (cnt > 0 && !sending_dma_activate) begin
             if (m_ready) begin
                 cnt <= cnt + 1;
                 if (cnt >= 4) begin
-                    if (current_command == CMD_READ_DMA && dma_read_active) begin
-                        // Move to data FIS state
-                        dma_read_active <= 0;
-                        $display("SATA MODEL: READ DMA complete, would send %d sectors from LBA %h",
-                                current_count, current_lba);
+                    // if (current_command == CMD_READ_DMA && dma_read_active) begin
+                    //     // Move to data FIS state
+                    //     dma_read_active <= 0;
+                    //     $display("SATA MODEL: READ DMA complete, would send %d sectors from LBA %h",
+                    //             current_count, current_lba);
+                    // end
+                    
+                    if (dma_write_active) begin
+                        // We've finished sending Register FIS, now send DMA Activate
+                        sending_dma_activate <= 1;
+                        $display("SATA MODEL: Sending DMA Activate FIS for WRITE DMA");
+                    end else begin
+                        cnt <= 0;
                     end
-                    cnt <= 0;
                 end
                 response <= { response[95:0], 32'h0 };
             end
-        end
-        else begin
+        end else if (sending_dma_activate && m_valid && m_last) begin
+            sending_dma_activate <= 1'b0;
+            cnt <= 0;
+        end else begin
             cnt <= 0;
             response <= COMMAND_RESPONSE;
         end
     end
 
-    assign  m_last = (cnt == 4) ? 1'b1 : 1'b0;
-    assign  m_data = m_valid ? response[127:96] : 32'h0;
+    // m_last
+    always @(*) begin
+        if (i_reset)
+            m_last <= 0;
+        else if (!sending_dma_activate && cnt == 4 && m_valid)
+            m_last <= 1'b1;
+        else if (sending_dma_activate && m_valid)
+            m_last <= 1'b1;
+        else
+            m_last <= 1'b0;
+    end
+
+    // m_data
+    always @(*) begin
+        if (i_reset)
+            m_data <= 0;
+        else if (m_valid && !sending_dma_activate)
+            m_data <= response[127:96];
+        else if (sending_dma_activate)
+            m_data <= { FIS_TYPE_DMA_ACT, 24'h0 };
+        else
+            m_data <= 32'h0;
+    end
 
 endmodule

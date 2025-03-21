@@ -190,6 +190,7 @@ module	sata_transport #(
 	wire		regtx_valid, regtx_ready, regtx_last;
 	wire	[31:0]	regtx_data;
 
+	reg	wb_link_up, wb_link_up_xpipe;
 
 	// }}}
 	////////////////////////////////////////////////////////////////////////
@@ -213,6 +214,14 @@ module	sata_transport #(
 		{ tx_reset_phyclk, tx_reset_xpipe }
 					<= { tx_reset_xpipe, txdma_reset };
 
+	initial { wb_link_up, wb_link_up_xpipe } = 2'b00;
+	always @(posedge i_clk)
+	if (i_reset)
+		{ wb_link_up, wb_link_up_xpipe } <= 2'b00;
+	else
+		{ wb_link_up, wb_link_up_xpipe } <= { wb_link_up_xpipe,
+					i_link_ready && !i_link_err };
+
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -225,8 +234,9 @@ module	sata_transport #(
 	satatrn_rxregfis
 	u_rxregfis(
 		// {{{
-		.i_clk(i_clk), .i_reset(i_reset), .i_phy_clk(i_phy_clk),
-		.i_phy_reset_n(phy_reset_n), .i_link_err(i_link_err),
+		.i_clk(i_clk), .i_reset(i_reset),
+		.i_phy_clk(i_phy_clk), .i_phy_reset_n(phy_reset_n),
+		.i_link_err(i_link_err),
 		//
 		.i_valid(i_tran_valid),
 		.i_data(i_tran_data),
@@ -255,7 +265,7 @@ module	sata_transport #(
 		.o_wb_stall(o_wb_stall),.o_wb_ack(o_wb_ack),
 		.o_wb_data(o_wb_data),
 		// }}}
-		.i_link_up(i_link_ready && !i_link_err),
+		.i_link_up(wb_link_up),
 		// .o_link_reset _request
 		//
 		.o_tran_req(tran_request),
@@ -366,7 +376,7 @@ module	sata_transport #(
 	);
 
 	assign	o_tran_empty = rxfifo_empty;
-	assign	rxgear_ready = !rxfifo_full;
+	assign	rxgear_ready = !o_tran_full;
 	assign	rxfifo_valid = !rxfifo_empty;
 
 	satadma_s2mm #(
@@ -481,12 +491,12 @@ module	sata_transport #(
 		.WIDTH(1+$clog2(DW/8)+DW), .LGFIFO(LGAFIFO)
 	) u_tx_afifo (
 		// {{{
-		.i_wclk(i_phy_clk), .i_wr_reset_n(phy_reset_n),
+		.i_wclk(i_clk), .i_wr_reset_n(!i_reset),
 		.i_wr(!txfifo_empty),
 			.i_wr_data({ txfifo_last, txfifo_bytes, txfifo_data }),
 			.o_wr_full(tx_afifo_full),
 		//
-		.i_rclk(i_clk), .i_rd_reset_n(!i_reset),
+		.i_rclk(i_phy_clk), .i_rd_reset_n(phy_reset_n),
 		.i_rd(tx_afifo_rd), .o_rd_data({
 				tx_afifo_last, tx_afifo_bytes, tx_afifo_data }),
 			.o_rd_empty(tx_afifo_empty)

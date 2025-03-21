@@ -101,7 +101,7 @@ module	sata_controller #(
 		//
 		output	wire		o_phy_reset,
 		input	wire		i_phy_ready,
-		output	wire		o_lnk_up, o_lnk_ready,
+		output	wire		o_lnk_ready,
 		// }}}
 		output	wire	[31:0]	o_dbg_reset,
 					o_dbg_link,
@@ -130,14 +130,21 @@ module	sata_controller #(
 	wire		tx_link_primitive;
 	wire	[31:0]	tx_link_data;
 	wire		link_reset_request;
+	reg		rx_linkup, rx_linkup_xpipe;
 	// }}}
 
 	assign	cfg_continue_en  = 1'b1;
 	assign	cfg_scrambler_en = 1'b1;
 	assign	cfg_crc_en       = 1'b1;
 	assign	o_phy_reset	= i_reset;
-	assign	o_lnk_up	= comlink_up;
 	assign	o_lnk_ready = link_ready;
+
+	initial	{ rx_linkup, rx_linkup_xpipe } = 2'b00;
+	always @(posedge i_rxphy_clk or posedge o_phy_reset)
+	if (o_phy_reset)
+		{ rx_linkup, rx_linkup_xpipe } <= 2'b00;
+	else
+		{ rx_linkup, rx_linkup_xpipe } <= { rx_linkup_xpipe, comlink_up };
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Transport layer
@@ -235,7 +242,7 @@ module	sata_controller #(
 		// PHY interface
 		// {{{
 		.i_rx_clk(i_rxphy_clk),
-		.i_rx_valid(i_rxphy_valid && comlink_up),
+		.i_rx_valid(rx_linkup),
 		.i_rx_data(i_rxphy_data),
 		//
 		.o_phy_primitive(tx_link_primitive),

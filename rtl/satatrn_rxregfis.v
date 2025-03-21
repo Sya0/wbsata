@@ -88,7 +88,7 @@ module	satatrn_rxregfis #(
 		if (!mid_packet_phy)
 		begin
 			is_regpacket_phy <= 1'b1;
-			case(i_data[7:0])
+			case(i_data[31:24])
 			FIS_DATA: is_regpacket_phy <= 1'b0;
 			default: begin end
 			endcase
@@ -101,11 +101,12 @@ module	satatrn_rxregfis #(
 
 	// afifo_wr_phy
 	// {{{
-	always @(posedge i_clk)
+	always @(posedge i_phy_clk)
 	if (!i_phy_reset_n || i_link_err)
 		afifo_wr_phy <= 1'b0;
-	else if (i_valid && (is_regpacket_phy || i_data[7:0] != FIS_DATA)
-			&& !afifo_full)
+	else if (i_valid && !afifo_full
+			&& (is_regpacket_phy
+				||(!mid_packet_phy&&i_data[31:24] != FIS_DATA)))
 		afifo_wr_phy <= 1'b1;
 	else
 		afifo_wr_phy <= 1'b0;
@@ -113,8 +114,8 @@ module	satatrn_rxregfis #(
 
 	// afifo_wr_data
 	// {{{
-	always @(posedge i_clk)
-	if (i_valid && (mid_packet_phy || i_data[7:0] != FIS_DATA))
+	always @(posedge i_phy_clk)
+	if (i_valid && (mid_packet_phy || i_data[31:24] != FIS_DATA))
 		afifo_wr_data <= { i_last, i_data };
 	// }}}
 
@@ -144,7 +145,7 @@ module	satatrn_rxregfis #(
 		if (!mid_packet_phy)
 		begin
 			is_datapacket_phy <= 1'b0;
-			case(i_data[7:0])
+			case(i_data[31:24])
 			FIS_DATA: is_datapacket_phy <= 1'b1;
 			default: begin end
 			endcase
@@ -157,7 +158,7 @@ module	satatrn_rxregfis #(
 
 	// o_data_valid
 	// {{{
-	always @(posedge i_clk)
+	always @(posedge i_phy_clk)
 	if (!i_phy_reset_n || i_link_err)
 		o_data_valid <= 1'b0;
 	else
@@ -166,7 +167,7 @@ module	satatrn_rxregfis #(
 
 	// o_data_data, o_data_last
 	// {{{
-	always @(posedge i_clk)
+	always @(posedge i_phy_clk)
 		{ o_data_last, o_data_data } <= { i_last, i_data };
 	// }}}
 endmodule

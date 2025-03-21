@@ -62,12 +62,19 @@ module	satatb_top;
 			CONS_ADDR = { 4'b0011, {(ADDRESS_WIDTH-4){1'b0}} },
 			SATA_ADDR = { 4'b0100, {(ADDRESS_WIDTH-4){1'b0}} },
 			DRP_ADDR  = { 4'b0101, {(ADDRESS_WIDTH-4){1'b0}} };
+			// Address reservations ...
+	//	SCOPE_TRAN_ADDR   = { 6'b011000,{(ADDRESS_WIDTH-6){1'b0}} },
+	//	SCOPE_LINK_ADDR   = { 6'b011001,{(ADDRESS_WIDTH-6){1'b0}} },
+	//	SCOPE_RESET_ADDR  = { 6'b011010,{(ADDRESS_WIDTH-6){1'b0}} };
 	localparam [ADDRESS_WIDTH-1:0]
 			MEM_MASK  = { 1'b1,    {(ADDRESS_WIDTH-1){1'b0}} },
 			ZDBG_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
 			CONS_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
 			SATA_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
 			DRP_MASK  = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} };
+	//	SCOPE_TRAN_MASK   = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} },
+	//	SCOPE_LINK_MASK   = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} },
+	//	SCOPE_RESET_MASK  = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} };
 	// }}}
 	reg	wb_clk, wb_reset, sata_ref_ck;
 	reg	ref_clk200;
@@ -383,17 +390,25 @@ module	satatb_top;
 		// {{{
 		.NM(3), .NS(5), .DW(DW), .AW(AW),
 		.SLAVE_ADDR({
-			{ MEM_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] },
+			{ MEM_ADDR[ ADDRESS_WIDTH-1:$clog2(DW/8)] },
 			{ ZDBG_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] },
 			{ CONS_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] },
 			{ SATA_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] },
-			{ DRP_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] } }),
+			{ DRP_ADDR[ ADDRESS_WIDTH-1:$clog2(DW/8)] } }),
+			// Address reservations
+		//	{ SCOPE_TRAN_ADDR[ ADDRESS_WIDTH-1:$clog2(DW/8)] },
+		//	{ SCOPE_LINK_ADDR[ ADDRESS_WIDTH-1:$clog2(DW/8)] },
+		//	{ SCOPE_RESET_ADDR[ADDRESS_WIDTH-1:$clog2(DW/8)] }
 		.SLAVE_MASK({
-			{ MEM_MASK[ADDRESS_WIDTH-1:$clog2(DW/8)] },
+			{ MEM_MASK[ ADDRESS_WIDTH-1:$clog2(DW/8)] },
 			{ ZDBG_MASK[ADDRESS_WIDTH-1:$clog2(DW/8)] },
 			{ CONS_MASK[ADDRESS_WIDTH-1:$clog2(DW/8)] },
 			{ SATA_MASK[ADDRESS_WIDTH-1:$clog2(DW/8)] },
-			{ DRP_MASK[ADDRESS_WIDTH-1:$clog2(DW/8)] } })
+			{ DRP_MASK[ ADDRESS_WIDTH-1:$clog2(DW/8)] } })
+			// Address reservations
+		//	{ SCOPE_TRAN_MASK[ADDRESS_WIDTH-1:$clog2(DW/8)] },
+		//	{ SCOPE_LINK_MASK[ADDRESS_WIDTH-1:$clog2(DW/8)] },
+		//	{ SCOPE_RESET_MASK[ADDRESS_WIDTH-1:$clog2(DW/8)] }
 		// }}}
 	) u_wbwide (
 		// {{{
@@ -412,7 +427,7 @@ module	satatb_top;
 		//
 		.o_scyc({   mem_cyc,	zdbgw_cyc,   conw_cyc,   sata_ctrlw_cyc,   drpw_cyc   }),
 		.o_sstb({   mem_stb,	zdbgw_stb,   conw_stb,   sata_ctrlw_stb,   drpw_stb   }),
-		.o_swe({    mem_we,		zdbgw_we,    conw_we,    sata_ctrlw_we,    drpw_we    }),
+		.o_swe({    mem_we,	zdbgw_we,    conw_we,    sata_ctrlw_we,    drpw_we    }),
 		.o_saddr({  mem_addr,	zdbgw_addr,  conw_addr,  sata_ctrlw_addr,  drpw_addr  }),
 		.o_sdata({  mem_data,	zdbgw_data,  conw_data,  sata_ctrlw_data,  drpw_data  }),
 		.o_ssel({   mem_sel,	zdbgw_sel,   conw_sel,   sata_ctrlw_sel,   drpw_sel   }),
@@ -523,7 +538,10 @@ module	satatb_top;
 		.i_rxphy_cominit(sata_rxphy_cominit),
 		.i_rxphy_comwake(sata_rxphy_comwake),
 		.o_rxphy_cdrhold(sata_rxphy_cdrhold),
-		.o_lnk_up(w_link_up), .o_lnk_ready(w_link_ready)
+		.o_lnk_up(w_link_up), .o_lnk_ready(w_link_ready),
+		//
+		// Debug ports
+		.o_dbg_reset(), .o_dbg_link(), .o_dbg_tran()
 		// }}}
 	);
 

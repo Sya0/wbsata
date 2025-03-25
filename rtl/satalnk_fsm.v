@@ -76,14 +76,16 @@ module	satalnk_fsm (
 		output	reg	[32:0]	m_phy_data,
 		// }}}
 		output	reg		o_phy_reset,
-		input	wire		i_phy_ready
+		input	wire		i_phy_ready,
+		//
+		output	reg	[31:0]	o_debug
 		// }}}
 	);
 
-`include "sata_primitives.vh"
-
 	// Local declarations
 	// {{{
+`include "sata_primitives.vh"
+
 	// Local state declarations
 	// {{{
 	localparam [4:0]	L_IDLE         = 5'd00,
@@ -529,6 +531,84 @@ module	satalnk_fsm (
 		end
 		// }}}
 	end
+	////////////////////////////////////////////////////////////////////////
+	//
+	// o_debug generation
+	// {{{
+	reg	[3:0]	tx_pdecode, rx_pdecode;
+
+	always @(*)
+	begin
+		tx_pdecode = 0;
+		if (s_data[31:0] == P_ALIGN[31:0]) tx_pdecode = 1;
+		if (s_data[31:0] == P_CONT[31:0])  tx_pdecode = tx_pdecode | 2;
+		if (s_data[31:0] == P_DMAT[31:0])  tx_pdecode = tx_pdecode | 3;
+		if (s_data[31:0] == P_EOF[31:0])   tx_pdecode = tx_pdecode | 4;
+		if (s_data[31:0] == P_HOLD[31:0])  tx_pdecode = tx_pdecode | 5;
+		if (s_data[31:0] == P_HOLDA[31:0]) tx_pdecode = tx_pdecode | 6;
+		if (s_data[31:0] == P_SOF[31:0])   tx_pdecode = tx_pdecode | 7;
+		if (s_data[31:0] == P_SYNC[31:0])  tx_pdecode = tx_pdecode | 8;
+		if (s_data[31:0] == P_R_IP[31:0])  tx_pdecode = tx_pdecode | 9;
+		if (s_data[31:0] == P_R_OK[31:0])  tx_pdecode = tx_pdecode | 10;
+		if (s_data[31:0] == P_R_RDY[31:0]) tx_pdecode = tx_pdecode | 11;
+		if (s_data[31:0] == P_X_RDY[31:0]) tx_pdecode = tx_pdecode | 12;
+		if (s_data[31:0] == P_R_ERR[31:0]) tx_pdecode = tx_pdecode | 13;
+		if (s_data[31:0] == P_WTRM[31:0])  tx_pdecode = tx_pdecode | 14;
+
+		if (!s_data[32] || !s_valid)
+			tx_pdecode = 4'hf;
+	end
+
+	always @(*)
+	begin
+		rx_pdecode = 0;
+		if (i_rx_data[31:0]== P_ALIGN[31:0]) rx_pdecode=rx_pdecode | 1;
+		if (i_rx_data[31:0]== P_CONT[31:0])  rx_pdecode=rx_pdecode | 2;
+		if (i_rx_data[31:0]== P_DMAT[31:0])  rx_pdecode=rx_pdecode | 3;
+		if (i_rx_data[31:0]== P_EOF[31:0])   rx_pdecode=rx_pdecode | 4;
+		if (i_rx_data[31:0]== P_HOLD[31:0])  rx_pdecode=rx_pdecode | 5;
+		if (i_rx_data[31:0]== P_HOLDA[31:0]) rx_pdecode=rx_pdecode | 6;
+		if (i_rx_data[31:0]== P_SOF[31:0])   rx_pdecode=rx_pdecode | 7;
+		if (i_rx_data[31:0]== P_SYNC[31:0])  rx_pdecode=rx_pdecode | 8;
+		if (i_rx_data[31:0]== P_R_IP[31:0])  rx_pdecode=rx_pdecode | 9;
+		if (i_rx_data[31:0]== P_R_OK[31:0])  rx_pdecode=rx_pdecode | 10;
+		if (i_rx_data[31:0]== P_R_RDY[31:0]) rx_pdecode=rx_pdecode | 11;
+		if (i_rx_data[31:0]== P_X_RDY[31:0]) rx_pdecode=rx_pdecode | 12;
+		if (i_rx_data[31:0]== P_R_ERR[31:0]) rx_pdecode=rx_pdecode | 13;
+		if (i_rx_data[31:0]== P_WTRM[31:0])  rx_pdecode=rx_pdecode | 14;
+
+		if (!i_rx_primitive)
+			rx_pdecode = 4'hf;
+	end
+
+
+	always @(posedge i_clk)
+	begin
+		o_debug <= 0;
+		o_debug[31] <= (link_state != o_debug[30:26]);
+		o_debug[30:26] <= link_state;
+		o_debug[25] <= i_rx_valid;
+		o_debug[24] <= i_phy_ready;
+		o_debug[23] <= i_rx_primitive;
+
+		o_debug[22] <= s_valid;
+		o_debug[21] <= s_ready;
+		o_debug[20] <= s_last;
+		o_debug[19] <= s_abort;
+		o_debug[18] <= s_success;
+		o_debug[17] <= s_failed;
+
+		o_debug[16] <= m_full;
+		o_debug[15] <= m_empty;
+		o_debug[14] <= m_last;
+		o_debug[13] <= m_abort;
+		o_debug[12] <= o_error;
+		o_debug[11] <= o_ready;
+
+		o_debug[10:7] <= rx_pdecode;
+		o_debug[ 6:3] <= tx_pdecode;
+	end
+	// }}}
 
 	assign	s_ready = r_ready && m_phy_ready;
 	assign	m_phy_valid = 1;

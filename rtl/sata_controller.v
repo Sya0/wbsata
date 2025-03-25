@@ -101,8 +101,11 @@ module	sata_controller #(
 		//
 		output	wire		o_phy_reset,
 		input	wire		i_phy_ready,
-		output	wire		o_lnk_up, o_lnk_ready
+		output	wire		o_lnk_up, o_lnk_ready,
 		// }}}
+		output	wire	[31:0]	o_dbg_reset,
+					o_dbg_link,
+					o_dbg_tran
 		// }}}
 	);
 
@@ -185,8 +188,9 @@ module	sata_controller #(
 		.i_tran_abort(d2h_tran_abort),
 		//
 		.i_link_err(link_error),
-		.i_link_ready(link_ready && comlink_up)
+		.i_link_ready(link_ready && comlink_up),
 		// }}}
+		.o_debug(o_dbg_tran)		// WB clock domain
 		// }}}
 	);
 	// }}}
@@ -237,8 +241,9 @@ module	sata_controller #(
 		.o_phy_primitive(tx_link_primitive),
 		.o_phy_data(tx_link_data),
 		.o_phy_reset(link_reset_request),
-		.i_phy_ready(tx_link_ready)
+		.i_phy_ready(tx_link_ready),
 		// }}}
+		.o_debug(o_dbg_link)		// TX clock domain
 		// }}}
 	);
 	// }}}
@@ -287,7 +292,8 @@ module	sata_controller #(
 		.i_phy_ready(i_txphy_ready),
 		// }}}
 		//
-		.o_link_up(comlink_up)		// TX clock domain
+		.o_link_up(comlink_up),		// TX clock domain
+		.o_debug(o_dbg_reset)		// TX clock domain
 	);
 
 	// }}}

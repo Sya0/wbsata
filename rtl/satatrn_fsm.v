@@ -537,7 +537,7 @@ module	satatrn_fsm #(
 				o_tran_src <= SRC_REGS;
 				o_tran_len <= 20; // register set
 
-				dma_length <= r_count;
+				dma_length <= r_count * 512;
 				r_busy <= 1'b1;
 			end end
 			// }}}
@@ -624,6 +624,7 @@ module	satatrn_fsm #(
 				o_tran_req <= 1;
 				o_tran_src <= SRC_MM2S;
 				o_tran_len <= (dma_length >= 2048) ? 2048 : dma_length[LGLENGTH:0]; // DATA_FIS
+				dma_length <= (dma_length >= 2048) ? (dma_length - 2048) : 0; // DATA_FIS
 			end end
 			// }}}
 		FSM_PIO_TXDATA: begin
@@ -659,6 +660,7 @@ module	satatrn_fsm #(
 			o_mm2s_request <= 0;
 			o_tran_src <= SRC_MM2S;
 			o_tran_len <= (dma_length > 2048) ? 2048 : dma_length[LGLENGTH:0];
+			dma_length <= (dma_length >= 2048) ? (dma_length - 2048) : 0; // DATA_FIS
 			if (s_pkt_valid && s_sop
 					&& s_brdata[7:0] == FIS_REG_TO_HOST)
 			begin

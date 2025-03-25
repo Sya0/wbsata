@@ -85,6 +85,8 @@ module	sata_phyinit #(
 	reg		gtx_reset_done;
 
 	wire		aligned;
+
+	reg		r_pll_reset, r_gtx_reset, r_user_ready, r_complete;
 	// }}}
 
 	////////////////////////////////////////////////////////////////////////
@@ -158,72 +160,110 @@ module	sata_phyinit #(
 	////////////////////////////////////////////////////////////////////////
 	//
 	//
-
+	initial	r_pll_reset = 1'b1;
+	initial	r_gtx_reset = 1'b1;
+	initial	r_user_ready = 1'b0;
+	initial	r_complete   = 1'b0;
 	always @(posedge i_clk)
 	if (i_reset || i_power_down)
 	begin
 		fsm_state   <= FSM_POWER_DOWN;
 		fsm_counter <= 100;
 		fsm_zero    <= 0;
+		//
+		r_pll_reset <= 1;
+		r_gtx_reset <= 1;
+		r_user_ready <= 0;
+		r_complete   <= 0;
 	end else begin
 		if (fsm_counter > 0)
 			fsm_counter <= fsm_counter - 1;
 		fsm_zero    <= (fsm_counter <= 1);
+		r_pll_reset <= 0;
+		r_gtx_reset <= 0;
+		r_user_ready<= 0;
+		r_complete  <= 0;
 		case(fsm_state)
-		FSM_POWER_DOWN:	if (fsm_zero)
+		FSM_POWER_DOWN:	begin
+			r_pll_reset <= 1;
+			r_gtx_reset <= 1;
+			if (fsm_zero)
 			begin
-			fsm_state   <= FSM_PLL_RESET;
-			fsm_counter <= 0;
-			fsm_zero    <= 1;
-			end
-		FSM_PLL_RESET: if (fsm_zero)
+				fsm_state   <= FSM_PLL_RESET;
+				fsm_counter <= 0;
+				fsm_zero    <= 1;
+			end end
+		FSM_PLL_RESET: begin
+			r_pll_reset <= 1;
+			r_gtx_reset <= 1;
+			if (fsm_zero)
 			begin
-			fsm_state   <= FSM_PLL_WAIT;
-			fsm_counter <= 4;
-			fsm_zero    <= 0;
-			end
-		FSM_PLL_WAIT: if (fsm_zero && pll_locked)
+				fsm_state   <= FSM_PLL_WAIT;
+				fsm_counter <= 4;
+				fsm_zero    <= 0;
+
+				r_pll_reset <= 0;
+			end end
+		FSM_PLL_WAIT: begin
+			r_gtx_reset <= 1;
+			if (fsm_zero && pll_locked)
 			begin
-			fsm_state   <= FSM_GTX_RESET;
-			fsm_counter <= 50;	// Guarantee 500ns GTX reset
-			fsm_zero    <= 0;
-			end
-		FSM_GTX_RESET: if (fsm_zero)
+				fsm_state   <= FSM_GTX_RESET;
+				fsm_counter <= 50;	// Guarantee 500ns GTX reset
+				fsm_zero    <= 0;
+			end end
+		FSM_GTX_RESET: begin
+			r_gtx_reset <= 1;
+			if (fsm_zero)
 			begin
-			fsm_state   <= FSM_USER_READY;
-			fsm_counter <= 4;
-			fsm_zero    <= 0;
-			end
+				fsm_state   <= FSM_USER_READY;
+				fsm_counter <= 4;
+				fsm_zero    <= 0;
+
+				r_gtx_reset <= 0;
+			end end
 		FSM_USER_READY: if (fsm_zero)
 			begin
 			fsm_state   <= FSM_GTX_WAIT;
 			fsm_counter <= 4;
 			fsm_zero    <= 0;
+
+			r_user_ready <= 1;
 			end
-		FSM_GTX_WAIT: if (fsm_zero && gtx_reset_done)
+		FSM_GTX_WAIT: begin
+			r_user_ready <= 1;
+			if (fsm_zero && gtx_reset_done)
 			begin
-			fsm_state   <= FSM_CDRLOCK_WAIT;
-			fsm_counter <= 4;
-			fsm_zero    <= 0;
-			end
-		FSM_CDRLOCK_WAIT: if (fsm_zero && cdr_lock)
+				fsm_state   <= FSM_CDRLOCK_WAIT;
+				fsm_counter <= 4;
+				fsm_zero    <= 0;
+			end end
+		FSM_CDRLOCK_WAIT: begin
+			r_user_ready <= 1;
+			if (fsm_zero && cdr_lock)
 			begin
-			fsm_state   <= (OPT_WAIT_ON_ALIGN) ? FSM_ALIGN_WAIT : FSM_READY;
-			fsm_counter <= 4;
-			fsm_zero    <= 0;
-			end
-		FSM_ALIGN_WAIT: if (fsm_zero && aligned)
+				fsm_state   <= (OPT_WAIT_ON_ALIGN) ? FSM_ALIGN_WAIT : FSM_READY;
+				fsm_counter <= 4;
+				fsm_zero    <= 0;
+				r_complete  <= !OPT_WAIT_ON_ALIGN;
+			end end
+		FSM_ALIGN_WAIT: begin
+			r_user_ready <= 1;
+			if (fsm_zero && aligned)
 			begin
-			fsm_state   <= FSM_READY;
-			fsm_counter <= 1;
-			fsm_zero    <= 0;
-			end
-		FSM_READY: if (fsm_zero)
+				fsm_state   <= FSM_READY;
+				fsm_counter <= 1;
+				fsm_zero    <= 0;
+			end end
+		FSM_READY: begin
+			r_user_ready <= 1;
+			r_complete   <= 1;
+			if (fsm_zero)
 			begin
-			fsm_state   <= FSM_READY;
-			fsm_counter <= 0;
-			fsm_zero    <= 1;
-			end
+				fsm_state   <= FSM_READY;
+				fsm_counter <= 0;
+				fsm_zero    <= 1;
+			end end
 		default: begin
 			fsm_state   <= FSM_PLL_RESET;
 			fsm_counter <= 0;
@@ -277,9 +317,9 @@ module	sata_phyinit #(
 	//
 
 	assign	o_err = (watchdog_timeout && fsm_state > FSM_GTX_RESET);
-	assign	o_pll_reset = (fsm_state <= FSM_PLL_RESET);
-	assign	o_gtx_reset = (fsm_state <= FSM_GTX_RESET);
-	assign	o_user_ready = (fsm_state >= FSM_GTX_WAIT);
-	assign	o_complete = (fsm_state >= FSM_READY);
+	assign	o_pll_reset = r_pll_reset; // (fsm_state <= FSM_PLL_RESET);
+	assign	o_gtx_reset = r_gtx_reset; // (fsm_state <= FSM_GTX_RESET);
+	assign	o_user_ready = r_user_ready; // (fsm_state >= FSM_GTX_WAIT);
+	assign	o_complete = r_complete;	// (fsm_state >= FSM_READY);
 	// }}}
 endmodule

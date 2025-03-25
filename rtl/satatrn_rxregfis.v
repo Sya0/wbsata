@@ -47,7 +47,7 @@ module	satatrn_rxregfis #(
 		input	wire		i_link_err,
 		//
 		input	wire		i_valid,
-		input	wire	[31:0]	i_data,	// *LITTLE* ENDIAN
+		input	wire	[31:0]	i_data,
 		input	wire		i_last,
 		//
 		output	wire		o_reg_valid,

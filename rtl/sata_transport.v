@@ -231,6 +231,11 @@ module	sata_transport #(
 	//
 	//
 
+	reg	wb_tran_abort, wb_tran_abort_xpipe;
+	initial	{ wb_tran_abort, wb_tran_abort_xpipe } = 2'b00;
+	always @(posedge i_clk)
+		{ wb_tran_abort, wb_tran_abort_xpipe } <= { wb_tran_abort_xpipe, i_tran_abort };
+
 	satatrn_rxregfis
 	u_rxregfis(
 		// {{{
@@ -270,7 +275,7 @@ module	sata_transport #(
 		//
 		.o_tran_req(tran_request),
 		.i_tran_busy(tran_request), // tranreq_busy),
-		.i_tran_err(i_tran_abort),
+		.i_tran_err(wb_tran_abort),
 		.o_tran_src(tranreq_src),
 		.o_tran_len(tranreq_len),
 		//
@@ -364,7 +369,7 @@ module	sata_transport #(
 		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO-$clog2(DW/8))
 	) rx_fifo (
 		// {{{
-		.i_clk(i_clk), .i_reset(i_reset || i_tran_abort || rxdma_reset),
+		.i_clk(i_clk), .i_reset(i_reset || wb_tran_abort || rxdma_reset),
 		//
 		.i_wr(!rx_afifo_empty), .i_data(rx_afifo_data),
 			.o_full(rxfifo_full), .o_fill(ign_rxfifo_fill),
@@ -384,7 +389,7 @@ module	sata_transport #(
 		.OPT_LITTLE_ENDIAN(1'b0)
 	) u_s2mm (
 		// {{{
-		.i_clk(i_clk), .i_reset(i_reset || i_tran_abort),
+		.i_clk(i_clk), .i_reset(i_reset || wb_tran_abort),
 		//
 		.i_request(s2mm_core_request),
 		.o_busy(s2mm_core_busy),
@@ -423,7 +428,7 @@ module	sata_transport #(
 		.LGLENGTH(LGLENGTH)
 	) u_mm2s (
 		// {{{
-		.i_clk(i_clk), .i_reset(i_reset || i_tran_abort),
+		.i_clk(i_clk), .i_reset(i_reset || wb_tran_abort),
 		//
 		.i_request(mm2s_core_request),
 		.o_busy(mm2s_core_busy), .o_err(mm2s_core_err),
@@ -471,7 +476,7 @@ module	sata_transport #(
 		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO-$clog2(DW/8))
 	) u_txfifo (
 		// {{{
-		.i_clk(i_clk), .i_reset(i_reset || i_tran_abort || txdma_reset),
+		.i_clk(i_clk), .i_reset(i_reset || wb_tran_abort || txdma_reset),
 		//
 		.i_wr(mm2sgear_valid), .i_data({ mm2sgear_last,
 						mm2sgear_bytes, mm2sgear_data }),

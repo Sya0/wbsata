@@ -517,11 +517,15 @@ module	satatrn_fsm #(
 			ADDR_LO: begin // ADDR_LO, r_dma_address
 				// {{{
 				r_dma_address <= wide_address[ADDRESS_WIDTH-1:0];
+				o_s2mm_addr	  <= wide_address[ADDRESS_WIDTH-1:0];
+				o_mm2s_addr	  <= wide_address[ADDRESS_WIDTH-1:0];
 				end
 				// }}}
 			ADDR_HI: begin // ADDR_HI, r_dma_address
 				// {{{
 				r_dma_address <= wide_address[ADDRESS_WIDTH-1:0];
+				o_s2mm_addr	  <= wide_address[ADDRESS_WIDTH-1:0];
+				o_mm2s_addr	  <= wide_address[ADDRESS_WIDTH-1:0];
 				end
 				// }}}
 			default: begin end
@@ -624,7 +628,6 @@ module	satatrn_fsm #(
 				o_tran_req <= 1;
 				o_tran_src <= SRC_MM2S;
 				o_tran_len <= (dma_length >= 2048) ? 2048 : dma_length[LGLENGTH:0]; // DATA_FIS
-				dma_length <= (dma_length >= 2048) ? (dma_length - 2048) : 0; // DATA_FIS
 			end end
 			// }}}
 		FSM_PIO_TXDATA: begin
@@ -660,7 +663,6 @@ module	satatrn_fsm #(
 			o_mm2s_request <= 0;
 			o_tran_src <= SRC_MM2S;
 			o_tran_len <= (dma_length > 2048) ? 2048 : dma_length[LGLENGTH:0];
-			dma_length <= (dma_length >= 2048) ? (dma_length - 2048) : 0; // DATA_FIS
 			if (s_pkt_valid && s_sop
 					&& s_brdata[7:0] == FIS_REG_TO_HOST)
 			begin
@@ -671,6 +673,7 @@ module	satatrn_fsm #(
 			begin
 				fsm_state <= FSM_DMA_TXDATA;
 				o_mm2s_request <= 1;
+				dma_length <= (dma_length >= 2048) ? (dma_length - 2048) : 0; // DATA_FIS
 				o_tran_req <= 1;
 			end end
 			// }}}

@@ -60,7 +60,8 @@ localparam [7:0] CMD_SET_DATETIME = 8'h77;
 localparam [7:0] CMD_WRITE_DMA = 8'hCA;      // Write DMA command code
 localparam [7:0] CMD_READ_DMA = 8'hC8;       // Read DMA command code
 
-localparam BYTES_PER_SECTOR = 32;
+localparam BYTES_PER_SECTOR = 512;
+localparam READ_BUF_ADDR = ADDR_MEM + (4 * BYTES_PER_SECTOR);	// Random place from mem
 
 task wait_response();
 begin
@@ -212,6 +213,7 @@ end endtask
 // Example test procedure for a complete DMA write/read test
 // 1-) fill_dma_buffer   -> Fills system memory at TEST_BUFFER with test pattern
 // 2-) sata_write_dma    -> Transfers data from system memory to SATA device
+//							[Device should send DMA ACTIVATION]
 // 						    [Data now stored on SATA device at specified LBA]
 // 3-) sata_read_dma     -> Transfers data from SATA device back to a different memory location
 // 4-) verify_dma_buffer -> Compares original and read-back data
@@ -229,13 +231,13 @@ begin
 	#1000;
 
 	// Read data back to a different buffer
-	// $display("\n Reading back data with READ DMA Command");
-	// sata_read_dma(lba, count, READ_BUF_ADDR);
-	// #1000;
+	$display("\n Reading back data with READ DMA Command");
+	sata_read_dma(lba, count, READ_BUF_ADDR);
+	#1000;
 
 	// Verify the data matches
-	// $display("\n Verifying the data matches...");
-	// verify_dma_buffer(ADDR_MEM, READ_BUF_ADDR, count * BYTES_PER_SECTOR);
+	$display("\n Verifying the data matches...");
+	verify_dma_buffer(ADDR_MEM, READ_BUF_ADDR, count * BYTES_PER_SECTOR);
 
 	$display("\n=== DMA Test Complete ===\n");
 end endtask

@@ -42,7 +42,7 @@
 localparam [47:0] TIMESTAMP = 48'h123456789ABC;  // Example timestamp in milliseconds
 
 // Define DMA write test parameters
-localparam [27:0] TEST_LBA = 28'h0000_100;       // Starting LBA for DMA write (sector 256)
+localparam [27:0] TEST_LBA = 28'h0000_200;       // Starting LBA for DMA read-write (512 bytes)
 localparam [7:0]  TEST_COUNT = 8'd1;             // Number of sectors to write
 
 task testscript;

@@ -538,7 +538,7 @@ module	satatb_top;
 		.i_rxphy_cominit(sata_rxphy_cominit),
 		.i_rxphy_comwake(sata_rxphy_comwake),
 		.o_rxphy_cdrhold(sata_rxphy_cdrhold),
-		.o_lnk_up(w_link_up), .o_lnk_ready(w_link_ready),
+		.o_lnk_ready(w_link_ready),
 		//
 		// Debug ports
 		.o_dbg_reset(), .o_dbg_link(), .o_dbg_tran()

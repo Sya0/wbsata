@@ -111,7 +111,7 @@ module	satatrn_txarb #(
 		else if (mid_reg_packet)
 			{ o_last, o_data } <= { regfifo_last, regfifo_data };
 		else if (txgate_phy && i_data_valid)
-			{ o_last, o_data } <= { 1'b0, 24'h0, FIS_DATA };
+			{ o_last, o_data } <= { 1'b0, FIS_DATA, 24'h0 };
 		else if (!regfifo_empty || !OPT_LOWPOWER)
 			{ o_last, o_data } <= { regfifo_last, regfifo_data };
 		else

@@ -53,7 +53,7 @@ module	sata_transport #(
 				OPT_LITTLE_ENDIAN = 1'b0,
 		// Verilator lint_on  UNUSED
 		parameter	LGFIFO = 12,
-		parameter	LGAFIFO=  4
+		parameter	LGAFIFO=  12
 		// }}}
 	) (
 		// {{{
@@ -209,10 +209,9 @@ module	sata_transport #(
 		{ rx_reset_phyclk, rx_reset_xpipe }
 					<= { rx_reset_xpipe, rxdma_reset };
 
-	assign	txdma_reset = !(mm2s_core_request || mm2s_core_busy);
+	// assign	txdma_reset = !(mm2s_core_request || mm2s_core_busy);
 	always @(posedge i_phy_clk)
-		{ tx_reset_phyclk, tx_reset_xpipe }
-					<= { tx_reset_xpipe, txdma_reset };
+		{ tx_reset_phyclk, tx_reset_xpipe } <= 0;
 
 	initial { wb_link_up, wb_link_up_xpipe } = 2'b00;
 	always @(posedge i_clk)
@@ -274,7 +273,7 @@ module	sata_transport #(
 		// .o_link_reset _request
 		//
 		.o_tran_req(tran_request),
-		.i_tran_busy(tran_request), // tranreq_busy),
+		.i_tran_busy(s2mm_core_busy || mm2s_core_busy), // tranreq_busy),
 		.i_tran_err(wb_tran_abort),
 		.o_tran_src(tranreq_src),
 		.o_tran_len(tranreq_len),
@@ -355,13 +354,14 @@ module	sata_transport #(
 	) u_rx_afifo (
 		// {{{
 		.i_wclk(i_phy_clk), .i_wr_reset_n(phy_reset_n),
-		.i_wr(rxgear_valid), .i_wr_data({
-				rxgear_last, rxgear_bytes, rxgear_data }),
-			.o_wr_full(o_tran_full),
+		.i_wr(rxgear_valid), 
+		.i_wr_data({ rxgear_last, rxgear_bytes, rxgear_data }),
+		.o_wr_full(o_tran_full),
 		//
 		.i_rclk(i_clk), .i_rd_reset_n(!i_reset),
-		.i_rd(!rxfifo_full), .o_rd_data(rx_afifo_data),
-			.o_rd_empty(rx_afifo_empty)
+		.i_rd(!rxfifo_full), 
+		.o_rd_data(rx_afifo_data),
+		.o_rd_empty(rx_afifo_empty)
 		// }}}
 	);
 
@@ -372,11 +372,11 @@ module	sata_transport #(
 		.i_clk(i_clk), .i_reset(i_reset || wb_tran_abort || rxdma_reset),
 		//
 		.i_wr(!rx_afifo_empty), .i_data(rx_afifo_data),
-			.o_full(rxfifo_full), .o_fill(ign_rxfifo_fill),
+		.o_full(rxfifo_full), .o_fill(ign_rxfifo_fill),
 		//
-		.i_rd(rxfifo_ready), .o_data({ rxfifo_last,
-						rxfifo_bytes, rxfifo_data }),
-			.o_empty(rxfifo_empty)
+		.i_rd(rxfifo_ready), 
+		.o_data({ rxfifo_last, rxfifo_bytes, rxfifo_data }),
+		.o_empty(rxfifo_empty)
 		// }}}
 	);
 
@@ -408,7 +408,7 @@ module	sata_transport #(
 		.o_wr_addr(s2mm_addr), .o_wr_data(ign_s2mm_data),
 		.o_wr_sel(s2mm_sel),
 		.i_wr_stall(s2mm_stall), .i_wr_ack(s2mm_ack),
-			.i_wr_data({(DW){1'b0}}),
+		.i_wr_data({(DW){1'b0}}),
 		.i_wr_err(s2mm_err)
 		// }}}
 	);
@@ -440,7 +440,7 @@ module	sata_transport #(
 		.o_rd_addr(mm2s_addr), .o_rd_data(mm2s_bus_data),
 		.o_rd_sel(mm2s_sel),
 		.i_rd_stall(mm2s_stall), .i_rd_ack(mm2s_ack),
-			.i_rd_data(i_dma_data),
+		.i_rd_data(i_dma_data),
 		.i_rd_err(mm2s_err),
 		//
 		.M_VALID(mm2s_valid),
@@ -457,7 +457,7 @@ module	sata_transport #(
 	) u_mm2s_gears (
 		// {{{
 		.i_clk(i_clk), .i_reset(i_reset),
-		.i_soft_reset(txdma_reset),
+		.i_soft_reset(1'b0),
 		.S_VALID(mm2s_valid),
 		.S_READY(mm2s_ready),
 		.S_DATA( mm2s_data),
@@ -476,15 +476,15 @@ module	sata_transport #(
 		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO-$clog2(DW/8))
 	) u_txfifo (
 		// {{{
-		.i_clk(i_clk), .i_reset(i_reset || wb_tran_abort || txdma_reset),
+		.i_clk(i_clk), .i_reset(i_reset || i_tran_abort),
 		//
-		.i_wr(mm2sgear_valid), .i_data({ mm2sgear_last,
-						mm2sgear_bytes, mm2sgear_data }),
-			.o_full(txfifo_full), .o_fill(ign_txfifo_fill),
+		.i_wr(mm2sgear_valid), 
+		.i_data({ mm2sgear_last, mm2sgear_bytes, mm2sgear_data }),
+		.o_full(txfifo_full), .o_fill(ign_txfifo_fill),
 		//
-		.i_rd(!tx_afifo_full), .o_data({ txfifo_last,
-						txfifo_bytes, txfifo_data }),
-			.o_empty(txfifo_empty)
+		.i_rd(!tx_afifo_full), 
+		.o_data({ txfifo_last, txfifo_bytes, txfifo_data }),
+		.o_empty(txfifo_empty)
 		// }}}
 	);
 
@@ -498,13 +498,13 @@ module	sata_transport #(
 		// {{{
 		.i_wclk(i_clk), .i_wr_reset_n(!i_reset),
 		.i_wr(!txfifo_empty),
-			.i_wr_data({ txfifo_last, txfifo_bytes, txfifo_data }),
-			.o_wr_full(tx_afifo_full),
+		.i_wr_data({ txfifo_last, txfifo_bytes, txfifo_data }),
+		.o_wr_full(tx_afifo_full),
 		//
 		.i_rclk(i_phy_clk), .i_rd_reset_n(phy_reset_n),
-		.i_rd(tx_afifo_rd), .o_rd_data({
-				tx_afifo_last, tx_afifo_bytes, tx_afifo_data }),
-			.o_rd_empty(tx_afifo_empty)
+		.i_rd(tx_afifo_rd), 
+		.o_rd_data({ tx_afifo_last, tx_afifo_bytes, tx_afifo_data }),
+		.o_rd_empty(tx_afifo_empty)
 		// }}}
 	);
 
@@ -514,7 +514,7 @@ module	sata_transport #(
 	) u_txgears(
 		// {{{
 		.i_clk(i_phy_clk), .i_reset(!phy_reset_n),
-		.i_soft_reset(tx_reset_phyclk),
+		.i_soft_reset(1'b0),	// ????
 		.i_size(SZ_32B),
 		.S_VALID(!tx_afifo_empty),
 		.S_READY(tx_afifo_rd),
@@ -534,7 +534,7 @@ module	sata_transport #(
 	u_txarb (
 		// {{{
 		.i_clk(i_clk), .i_reset(i_reset), .i_phy_clk(i_phy_clk),
-			.i_phy_reset_n(phy_reset_n),//.i_link_err(i_link_err),
+		.i_phy_reset_n(phy_reset_n),//.i_link_err(i_link_err),
 		//
 		// Incoming control data for transmission, on i_clk
 		// {{{
@@ -567,7 +567,7 @@ module	sata_transport #(
 	// tx_gate
 	// {{{
 	always @(posedge i_clk)
-	if (i_reset || txdma_reset)
+	if (i_reset)
 		tx_gate <= 1'b0;
 	else if (mm2s_valid && mm2s_ready && mm2s_last)
 		tx_gate <= 1'b1;
@@ -589,7 +589,7 @@ module	sata_transport #(
 		.o_a_stall(mm2s_stall), .o_a_ack(mm2s_ack), .o_a_err(mm2s_err),
 		//
 		.i_b_cyc(s2mm_cyc),  .i_b_stb(s2mm_stb),  .i_b_we(s2mm_we),
-		.i_b_adr(s2mm_addr), .i_b_dat(mm2s_bus_data), .i_b_sel(s2mm_sel),
+		.i_b_adr(s2mm_addr), .i_b_dat(ign_s2mm_data), .i_b_sel(s2mm_sel),
 		.o_b_stall(s2mm_stall), .o_b_ack(s2mm_ack), .o_b_err(s2mm_err),
 		//
 		.o_cyc(o_dma_cyc),  .o_stb(o_dma_stb),  .o_we(o_dma_we),
@@ -620,7 +620,7 @@ module	sata_transport #(
 			// These are expected to be ignored
 			ign_datarx_ready, ign_txgear_bytes,
 			ign_mm2sgear_bytes_msb, ign_rxgear_bytes_msb,
-			ign_txfifo_fill, ign_rxfifo_fill, ign_s2mm_data
+			ign_txfifo_fill, ign_rxfifo_fill
 			};
 	generate if (DW != 32)
 	begin : UNUSED_DW

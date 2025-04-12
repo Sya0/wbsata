@@ -59,6 +59,8 @@ localparam [7:0] FIS_TYPE_REG_H2D  = 8'h27,	// Host to Device Register
 localparam [7:0] CMD_SET_DATETIME = 8'h77;
 localparam [7:0] CMD_WRITE_DMA = 8'hCA;      // Write DMA command code
 localparam [7:0] CMD_READ_DMA = 8'hC8;       // Read DMA command code
+localparam [7:0] CMD_READ_BUFFER = 8'hE4;    // Read Buffer command code
+localparam [7:0] CMD_WRITE_BUFFER = 8'hE8;   // Write Buffer command code
 
 localparam BYTES_PER_SECTOR = 512;
 localparam READ_BUF_ADDR = ADDR_MEM + (4 * BYTES_PER_SECTOR);	// Random place from mem
@@ -225,19 +227,109 @@ begin
 	#1000;
 
 	// Write data to device
-	$display("\n Sending WRITE DMA Command - LBA: %0h, Count: %0d, Buffer: %0h", 
-		lba, count, ADDR_MEM);
 	sata_write_dma(lba, count, ADDR_MEM);
 	#1000;
 
 	// Read data back to a different buffer
-	$display("\n Reading back data with READ DMA Command");
 	sata_read_dma(lba, count, READ_BUF_ADDR);
 	#1000;
 
 	// Verify the data matches
-	$display("\n Verifying the data matches...");
+	$display("\n Verifying the data matches for DMA read/write...");
 	verify_dma_buffer(ADDR_MEM, READ_BUF_ADDR, count * BYTES_PER_SECTOR);
 
 	$display("\n=== DMA Test Complete ===\n");
+end endtask
+
+// PIO Write Buffer - Write data to device's buffer using PIO mode
+task sata_write_buffer(input [31:0] buffer_addr, input [15:0] sector_count);
+    reg [31:0] status;
+begin
+    // Set up sector count (number of 512-byte blocks to write)
+    u_bfm.writeio(ADDR_COUNT, {16'h0, sector_count});
+    
+    // Set up buffer address in system memory containing the data
+    u_bfm.writeio(ADDR_LO, buffer_addr);
+    u_bfm.writeio(ADDR_HI, 32'h0);
+    
+    // Send WRITE BUFFER command - this is a PIO data-out command
+    $display("Sending WRITE BUFFER command for %0d sectors from buffer %0h", sector_count, buffer_addr);
+    u_bfm.writeio(ADDR_CMD, {8'h0, CMD_WRITE_BUFFER, 8'h40, FIS_TYPE_REG_H2D});
+    
+    // Wait for PIO completion interrupt
+    $display("Waiting for WRITE BUFFER completion...");
+    wait(sata_int);
+    
+    // Check command status
+    u_bfm.readio(ADDR_CMD, status);
+    
+    if ((status & 32'hFF_80_00_FF) !== 32'h00_00_00_34)
+    begin
+        error_flag = 1'b1;
+        $display("WRITE BUFFER command failed with status 0x%08x", status);
+        $display("  - Features: 0x%02x", status[31:24]);
+        $display("  - Command: 0x%02x", status[23:16]);
+        $display("  - Device: 0x%02x", status[15:8]);
+        $display("  - FIS type: 0x%02x (expected 0x34)", status[7:0]);
+    end
+    else
+        $display("WRITE BUFFER command completed successfully");
+end endtask
+
+// PIO Read Buffer - Read data from device's buffer using PIO mode
+task sata_read_buffer(input [31:0] buffer_addr, input [15:0] sector_count);
+    reg [31:0] status;
+begin
+    // Set up sector count (number of 512-byte blocks to read)
+    u_bfm.writeio(ADDR_COUNT, {16'h0, sector_count});
+    
+    // Set up buffer address in system memory where data will be stored
+    u_bfm.writeio(ADDR_LO, buffer_addr);
+    u_bfm.writeio(ADDR_HI, 32'h0);
+    
+    // Send READ BUFFER command - this is a PIO data-in command
+    $display("Sending READ BUFFER command for %0d sectors to buffer %0h", sector_count, buffer_addr);
+    u_bfm.writeio(ADDR_CMD, {8'h0, CMD_READ_BUFFER, 8'h40, FIS_TYPE_REG_H2D});
+    
+    // Wait for PIO completion interrupt
+    $display("Waiting for READ BUFFER completion...");
+    wait(sata_int);
+    
+    // Check command status
+    u_bfm.readio(ADDR_CMD, status);
+    
+    if ((status & 32'hFF_80_00_FF) !== 32'h00_00_00_34)
+    begin
+        error_flag = 1'b1;
+        $display("READ BUFFER command failed with status 0x%08x", status);
+        $display("  - Features: 0x%02x", status[31:24]);
+        $display("  - Command: 0x%02x", status[23:16]);
+        $display("  - Device: 0x%02x", status[15:8]);
+        $display("  - FIS type: 0x%02x (expected 0x34)", status[7:0]);
+    end
+    else
+        $display("READ BUFFER command completed successfully");
+end endtask
+
+// Add helper task to test PIO buffer read/write operations
+task test_pio_buffer(input [15:0] sector_count);
+begin
+    // Fill write buffer with pattern
+    // $display("\n Initializing the buffer with a test pattern...");
+    // fill_dma_buffer(ADDR_MEM, sector_count * BYTES_PER_SECTOR);
+    // #1000;
+
+    // Write data to device's buffer
+    sata_write_buffer(ADDR_MEM, sector_count);
+    #1000;
+
+    // Read data back to a different buffer
+    sata_read_buffer(READ_BUF_ADDR, sector_count);
+    #1000;
+
+    // Verify the data matches
+    $display("\n Verifying the data matches for PIO read/write...");
+    verify_dma_buffer(ADDR_MEM, READ_BUF_ADDR, sector_count * BYTES_PER_SECTOR);
+
+    $display("\n=== PIO Buffer Test Complete ===\n");
 end endtask

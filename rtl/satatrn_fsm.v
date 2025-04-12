@@ -222,7 +222,7 @@ module	satatrn_fsm #(
 				cmd_type  <= CMD_NONDATA;
 				end
 				// }}}
-			8'h20, 8'h24, 8'h2b, 8'h2f,
+			8'h20, 8'h24, 8'h2b, 8'h2f, 8'he4,
 			8'h5c, 8'hec: begin // PIO Read
 				// {{{
 					// Read sectors, Read sectors EXT,
@@ -592,6 +592,7 @@ module	satatrn_fsm #(
 			end else if (s_pkt_valid && s_sop
 					&& s_brdata[7:0] == FIS_PIO_SETUP)
 			begin
+				o_s2mm_request <= 1;
 				fsm_state <= FSM_PIO_RXDATA;
 				last_rx_fis <= s_brdata[23]; // BSY
 			end end
@@ -605,18 +606,20 @@ module	satatrn_fsm #(
 				o_s2mm_addr <= o_s2mm_addr   + $clog2(DW/8);
 				// Verilator lint_on  WIDTH
 			end
-			o_s2mm_request     <= 1;
+			if (o_s2mm_request && !i_s2mm_busy)
+				o_s2mm_request <= 1'b0;
 			if (s_pkt_valid && s_sop
 					&& s_brdata[7:0] == FIS_REG_TO_HOST)
 			begin
-				fsm_state <= (last_rx_fis) ? FSM_IDLE : FSM_PIO_IN_SETUP;
-				if (last_rx_fis)
+				fsm_state <= (last_rx_fis) ? FSM_PIO_IN_SETUP : FSM_IDLE;
+				if (!last_rx_fis)
 					return_to_idle <= 1'b1;
 			end end
 			// }}}
 		FSM_PIO_OUT_SETUP: begin
 			// {{{
 			// Transmit data via PIO
+			o_mm2s_request <= 1'b0;
 			if (s_pkt_valid && s_sop && s_brdata[7:0] == FIS_REG_TO_HOST)
 			begin
 				fsm_state <= FSM_IDLE;
@@ -625,6 +628,7 @@ module	satatrn_fsm #(
 					&& s_brdata[7:0] == FIS_PIO_SETUP)
 			begin
 				fsm_state <= FSM_PIO_TXDATA;
+				o_mm2s_request <= 1'b1;
 				o_tran_req <= 1;
 				o_tran_src <= SRC_MM2S;
 				o_tran_len <= (dma_length >= 2048) ? 2048 : dma_length[LGLENGTH:0]; // DATA_FIS
@@ -634,7 +638,9 @@ module	satatrn_fsm #(
 			// {{{
 			if (o_tran_req && !i_tran_busy)
 				o_tran_req <= 0;
-			if (!o_tran_req && !i_tran_busy)
+			if (o_mm2s_request && !i_mm2s_busy)
+				o_mm2s_request <= 1'b0;
+			if (!o_mm2s_request && !i_mm2s_busy)
 				fsm_state <= FSM_PIO_OUT_SETUP;
 			end
 			// }}}

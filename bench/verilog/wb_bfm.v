@@ -41,7 +41,7 @@ module	wb_bfm #(
 		parameter AW = 5,
 		parameter DW = 32,
 		parameter LGFIFO = 4,
-		parameter [0:0]	OPT_DEBUG = 1'b1
+		parameter [0:0]	OPT_DEBUG = 1'b0
 	) (
 		// {{{
 		input	wire			i_clk, i_reset,

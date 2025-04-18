@@ -49,4 +49,6 @@
 ##
 ##		This is currently the *ONLY* supported configuration at present.
 ## }}}
-init		WB  satainit
+setdatetime     WB  sata_fis_test
+dma_test        WB  sata_dma_test
+pio_test        WB  sata_pio_test

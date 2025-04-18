@@ -38,8 +38,11 @@ mdl_s8b10bw.v
 mdl_salign.v
 mdl_sbitsync.v
 mdl_scomfsm.v
+mdl_oob.v
 mdl_srxcomsigs.v
 mdl_txword.v
+mdl_satacmd.v
+mdl_alignp_transmit.v
 ## Other test bench sources
 wb2axip/addrdecode.v
 wb2axip/memdev.v

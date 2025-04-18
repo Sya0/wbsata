@@ -29,3 +29,7 @@ core
 *.yslog
 *.smt2
 /refs/
+*.jou
+*.log
+bench/verilog/tmp_project
+bench/verilog/report.txt

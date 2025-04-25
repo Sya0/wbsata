@@ -50,7 +50,7 @@ module mdl_oob (
 		// }}}
 	);
 
-`include "sata_primitives.vh"
+`include "../../rtl/sata_primitives.vh"
 
 	// Local declarations
 	// {{{
@@ -120,7 +120,7 @@ module mdl_oob (
 
 	reg	[2:0]	fsm_state;
 
-// Testbench signals
+	// Testbench signals
 	reg		send_cominit, send_comwake, send_align, send_sync;
 	reg [P_BITS-1:0] data_word;
 	reg		tx_elec_idle;
@@ -129,41 +129,6 @@ module mdl_oob (
 	reg [$clog2($rtoi(COMINIT_IDLE_DURATION + 0.5)):0]   idle_timeout;
 	reg	[3:0]	comwake_count, cominit_count, align_count;
 	// }}}
-	////////////////////////////////////////////////////////////////////////
-	//
-	// Look for an RX word to lock to
-	// {{{
-
-(* keep *) wire	[39:0]	p_sync;
-mdl_s8b10bw u_sync (
-	.i_clk(i_clk), .i_reset(i_reset),
-	.S_VALID(1'b1), .S_CTRL(1'b1), .S_DATA(P_SYNC[31:0]),
-	.M_READY(1'b1), .M_DATA(p_sync)
-);
-
-(* keep *) wire	[39:0]	p_align;
-mdl_s8b10bw u_align (
-	.i_clk(i_clk), .i_reset(i_reset),
-	.S_VALID(1'b1), .S_CTRL(1'b1), .S_DATA(P_ALIGN[31:0]),
-	.M_READY(1'b1), .M_DATA(p_align)
-);
-
-(* keep *) wire	[39:0]	p_dval;
-mdl_s8b10bw u_dval (
-	.i_clk(i_clk), .i_reset(i_reset),
-	.S_VALID(1'b1), .S_CTRL(1'b1), .S_DATA(D10_2[31:0]),
-	.M_READY(1'b1), .M_DATA(p_dval)
-);
-
-(* keep *) wire [32:0] w_decoded;
-(* keep *) wire		dcd_illegal;
-mdl_s10b8bw
-u_decode (
-	.i_clk(i_clk), .i_reset(i_reset),
-	.S_VALID(1'b1), .S_READY(), .S_DATA(sampld_sreg),
-	.M_READY(1'b1), .M_ILLEGAL(dcd_illegal), .M_CTRL(w_decoded[32]),
-		.M_DATA(w_decoded[31:0])
-);
 
 	// OpenCK is an open loop clock.  By Nyquist, it must be greater than
 	// {{{
@@ -301,11 +266,6 @@ u_decode (
 		.o_tx_n(o_tx_n)
 	);
 	// }}}
-
-	// initial begin
-    // 	$dumpfile("waveform.vcd");
-    // 	$dumpvars(0, tb_oob);
-    // end
 
 	always @(*)
 	if (!o_done)

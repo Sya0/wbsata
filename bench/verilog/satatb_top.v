@@ -42,7 +42,7 @@
 `timescale	1ns/1ps
 // }}}
 module	satatb_top;
-`include "sata_commands.v"
+// `include "testscript/sata_commands.v"
 	// Local declarations
 	// {{{
 	parameter	ADDRESS_WIDTH = 27;	// Byte address width
@@ -723,7 +723,12 @@ module	satatb_top;
 	// Test-Bench driver
 	// {{{
 	reg	error_flag = 1'b0;
-// `include SCRIPT
+
+`ifdef	REGRESSION
+`include	`SCRIPT
+`else
+`include	"testscript.v"
+`endif
 
 	initial	begin
 		error_flag = 1'b0;

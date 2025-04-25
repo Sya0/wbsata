@@ -122,7 +122,7 @@ module	satatb_top;
 	wire	[AW-1:0]		sata_ctrlw_addr;
 	wire	[DW-1:0]	sata_ctrlw_data, sata_ctrlw_idata;
 	wire	[DW/8-1:0]	sata_ctrlw_sel;
-	wire		w_link_up, w_link_ready;
+	wire			w_link_ready;
 
 	wire			sata_ctrl_cyc, sata_ctrl_stb, sata_ctrl_we,
 				sata_ctrl_stall, sata_ctrl_ack, sata_ctrl_err;
@@ -466,6 +466,8 @@ module	satatb_top;
 	//
 	// SATA Device Under Test (DUT)
 	// {{{
+	(* keep *)	wire		w_ref_monitor;
+	(* keep *)	wire	[31:0]	w_phy_debug;
 
 	wbdown #(
 		.ADDRESS_WIDTH(CTRL_ADDRESS_WIDTH),
@@ -538,7 +540,7 @@ module	satatb_top;
 		.i_rxphy_cominit(sata_rxphy_cominit),
 		.i_rxphy_comwake(sata_rxphy_comwake),
 		.o_rxphy_cdrhold(sata_rxphy_cdrhold),
-		.o_lnk_up(w_link_up), .o_lnk_ready(w_link_ready),
+		.o_lnk_ready(w_link_ready),
 		//
 		// Debug ports
 		.o_dbg_reset(), .o_dbg_link(), .o_dbg_tran()
@@ -613,8 +615,9 @@ module	satatb_top;
 		// I/O pad connections
 		// {{{
 		.o_tx_p(sata_tx_p), .o_tx_n(sata_tx_n),
-		.i_rx_p(sata_rx_p), .i_rx_n(sata_rx_n)
+		.i_rx_p(sata_rx_p), .i_rx_n(sata_rx_n),
 		// }}}
+		.o_refclk(w_ref_monitor), .o_debug(w_phy_debug)
 		// }}}
 	);
 

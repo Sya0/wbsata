@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2021-2024, Gisselquist Technology, LLC
+// Copyright (C) 2021-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -82,7 +82,7 @@ module	satalnk_rxpacket #(
 
 	wire		ds_valid, ds_last;
 	wire	[31:0]	ds_data;
-	
+
 	wire	[31:0]	crc_data;
 	wire		crc_abort;
 	// }}}

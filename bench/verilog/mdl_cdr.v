@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2024, Gisselquist Technology, LLC
+// Copyright (C) 2024-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -74,6 +74,7 @@ module mdl_cdr #(
 	// {{{
 	localparam [PHASE_BITS-1:0]	HALF_PERIOD
 			= { 2'b10, {(PHASE_BITS-2){1'b0}} } + CK_STEP;
+	localparam OPT_RESAMPLE = 0;
 
 	reg				tr_last;
 	wire				tr_now, w_stb;

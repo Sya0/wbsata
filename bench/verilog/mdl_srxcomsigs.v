@@ -22,7 +22,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2022-2024, Gisselquist Technology, LLC
+// Copyright (C) 2022-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -50,122 +50,113 @@
 `timescale 1ns/1ps
 // }}}
 module mdl_srxcomsigs #(
+		// Verilator lint_off UNUSED
 		parameter	OVERSAMPLE = 4,
+		// Verilator lint_on   UNUSED
 		// The SATA SYMBOL duration is one over the symbol rate, either
 		// 1.5GHz, 3.0GHz, or 6GHz, here expressed in ns.
 		parameter	realtime	CLOCK_SYM_NS = 1000.0/1500.0
 	) (
+		input 	wire	i_clk,
 		input	wire	i_reset,
 		input	wire	i_rx_p, i_rx_n,
-		output	reg	o_comwake, o_comreset
+		input	wire	i_cominit_det, i_comwake_det,
+		output	reg		o_comwake, o_comreset
 	);
 
 	// Local declarations
 	// {{{
-	localparam realtime	SAMPLE_RATE_NS = CLOCK_SYM_NS / OVERSAMPLE;
+	// localparam realtime	SAMPLE_RATE_NS = CLOCK_SYM_NS / OVERSAMPLE;
 	// localparam	TUI = OVERSAMPLE * 10 * SAMPLE_RATE_NS;
 	// localparam	T1 = 160 * TUI;
 	// localparam	T2 = 480 * TUI;
 	localparam	RESET_BURSTS = 6;	// Min # of COMRESET bursts
-	localparam	COMWAKE_MIN = $rtoi(35 / SAMPLE_RATE_NS), //  35ns in ticks
-			COMWAKE_MAX = $rtoi(175 / SAMPLE_RATE_NS); // 175ns in ticks
-	localparam	COMRESET_MIN = $rtoi(175 / SAMPLE_RATE_NS), // 175ns in ticks
-			COMRESET_MAX = $rtoi(525 / SAMPLE_RATE_NS); // 525ns in ticks
+	localparam	WAKE_BURSTS = 6;	// Min # of COMWAKE bursts
+	// Below values are for GAP Detection
+	localparam	COM_MIN = $rtoi(104 / CLOCK_SYM_NS),
+				COM_MAX = $rtoi(109 / CLOCK_SYM_NS);
+	localparam	RESETIDLE_MIN = $rtoi(311 / CLOCK_SYM_NS),
+				RESETIDLE_MAX = $rtoi(329 / CLOCK_SYM_NS);
+	localparam	WAKEIDLE_MIN = $rtoi(104 / CLOCK_SYM_NS),
+				WAKEIDLE_MAX = $rtoi(109 / CLOCK_SYM_NS);
 
 	localparam	[2:0]	POR_RESET    = 0,
 				FSM_COMRESET = 1,
-				FSM_DEVINIT  = 2,
+				FSM_HOSTINIT = 2,
 				FSM_DEVWAKE  = 3,
-				FSM_RELEASE  = 4;
+				FSM_HOSTWAKE = 4,
+				FSM_RELEASE  = 5;
 
-	localparam	MSB = $clog2(COMRESET_MAX+1);
+	localparam	MSB = $clog2(RESETIDLE_MAX+1);
 	localparam	OOBMSB = 4;
+	localparam	ALIGN_COUNT = 4;
 
-	localparam [9:0] D24_3 = { 6'b110011, 4'b0011 },
+	localparam [9:0] // D24_3 = { 6'b110011, 4'b0011 },
 			K28_5 = { 6'b001111, 4'b1010 }, // Inverts disparity
 			D10_2 = { 6'b010101, 4'b0101 },	// Neutral
-			D27_3 = { 6'b110110, 4'b0011 }; // Inverts disparity
+			D27_3 = { 6'b001001, 4'b1100 }; // Inverts disparity
 	localparam [39:0] ALIGN_P = { K28_5, D10_2, D10_2, D27_3 };
 
-	integer		ip;
-
-	reg		sclk;
-	reg		valid_symbol, idle, last_rx;
+	reg		valid_symbol;
 	reg	[MSB:0]	idle_timeout, com_timeout;
 	reg		w_comwake, w_comreset;
 	reg	[OOBMSB:0]	oob_count;
-	reg	[39:0]	sreg	[0:OVERSAMPLE-1];
-	reg	[$clog2(OVERSAMPLE)-1:0]	p;
-	reg		det_p, align_p;
-	reg		com_detect;
+	reg	[39:0]	sreg;
+	// reg	[$clog2(OVERSAMPLE)-1:0]	p;
+	reg		align_p;
 	reg	[2:0]	reset_state;
+	reg	[2:0]	align_cnt;
 	// }}}
-	////////////////////////////////////////////////////////////////////////
-	//
-	// Generate a sample clock
-	// {{{
-	initial	begin
-		sclk = 0;
-		forever
-			#(SAMPLE_RATE_NS/2) sclk = !sclk;
-	end
 
-	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Detect the out-of-band signals forming COMWAKE and COMRESET
 	// {{{
-	initial begin
-		for(ip=0; ip<OVERSAMPLE; ip=ip+1)
-			sreg[ip] = 0;
-		p = 0;
-	end
-
-	always @(posedge sclk)
-	begin
-		sreg[p] <= { sreg[p][38:0],
-				(i_rx_p === 1'b1) && (i_rx_n === 1'b0) };
-		p <= p + 1;
+	initial sreg = 0;
+	always @(posedge i_clk) begin
+		sreg <= { sreg[38:0], (i_rx_p === 1'b1) && (i_rx_n === 1'b0) };
 	end
 
 	always @(*)
 	begin
-		det_p = (sreg[p] == {(2){  D24_3, ~D24_3 }})	// D24.3
-			|| (sreg[p] == {(2){ ~D24_3,  D24_3 }});
+		// det_p = (sreg == {(2){  D24_3, ~D24_3 }})	// D24.3
+		//	 || (sreg == {(2){ ~D24_3,  D24_3 }});
 
-		align_p = (sreg[p] ==  ALIGN_P) // ALIGN primitive
-			|| (sreg[p] == ~ALIGN_P);
+		align_p = (sreg ==  ALIGN_P) // ALIGN primitive
+			   || (sreg == ~ALIGN_P);
 
-		com_detect = (det_p || align_p);
+		// com_detect = (det_p || align_p);
 		valid_symbol = (i_rx_p === 1'b1 && i_rx_n === 1'b0)
-				||(i_rx_n === 1'b0 && i_rx_n === 1'b1);
+					|| (i_rx_p === 1'b0 && i_rx_n === 1'b1);
 	end
+
+	initial align_cnt = 0;
+	always @(posedge i_clk or posedge i_reset)
+	if (i_reset)
+		align_cnt <= 0;
+	else if (w_comreset || w_comwake)
+		align_cnt <= 0;
+	else if (align_p && !(&align_cnt))
+		align_cnt <= align_cnt + 1;
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Measure how long we've been idle/inactive
 	// {{{
-	initial	last_rx = 0;
-	always @(posedge sclk)
-		last_rx <= (i_rx_p === 1'b1) && (i_rx_n === 1'b0);
-
 	initial	idle_timeout = 0;
-	always @(posedge sclk)
-	if (valid_symbol && i_rx_p !== last_rx)
-		idle_timeout <= 0;
-	else if (!idle_timeout[MSB])
+	always @(posedge i_clk)
+	if (!valid_symbol)
 		idle_timeout <= idle_timeout + 1;
+	else
+		idle_timeout <= 0;
 
-	always @(*)
-		idle = idle_timeout >= 40 * OVERSAMPLE;
-
-	initial	com_timeout = -1;
-	always @(posedge sclk)
+	initial	com_timeout = 0;
+	always @(posedge i_clk)
 	begin
-		if (com_detect)
-			com_timeout <= 0;
-		else if (!com_timeout[MSB])
+		if (valid_symbol)
 			com_timeout <= com_timeout + 1;
+		else if (w_comreset || w_comwake)
+			com_timeout <= 0;
 	end
 	// }}}
 	////////////////////////////////////////////////////////////////////////
@@ -176,18 +167,24 @@ module mdl_srxcomsigs #(
 
 	// A COMRESET = the comreset sequence, followed by an idle period,
 	// followed by a valid symbol of some type.
+	// Sometimes we cannot detect all 4 aligns because of sync of tx and 1.5gbps clks.
+	// Hence one alignment can be neglated
 	always @(*)
-		w_comreset = (com_timeout >= COMWAKE_MIN) && !com_timeout[MSB]
-			&& (idle_timeout >= COMRESET_MIN
-						&& idle_timeout < COMRESET_MAX);
+		w_comreset = (reset_state == FSM_COMRESET)
+			&& (align_cnt >= (ALIGN_COUNT-1))
+			&& (com_timeout >= COM_MIN && com_timeout  < COM_MAX)
+			&& (idle_timeout >= RESETIDLE_MIN && idle_timeout < RESETIDLE_MAX);
 
 	// A COMWAKE = the same com sequence, followed by an idle period of
 	// an appropriate length, followed by a valid symbol of some (any) type.
 	// That symbol could be good data, or part of the next valid sequence.
+	// Sometimes we cannot detect all 4 aligns because of sync of tx and 1.5gbps clks.
+	// Hence one alignment can be neglated
 	always @(*)
-		w_comwake = valid_symbol && i_rx_p != last_rx
-			&& (com_timeout  >= COMWAKE_MIN) && !com_timeout[MSB]
-			&& (idle_timeout >= COMWAKE_MIN && idle_timeout < COMWAKE_MAX);
+		w_comwake = (reset_state == FSM_DEVWAKE)
+			&& (align_cnt >= (ALIGN_COUNT-1))
+			&& (com_timeout  >= COM_MIN && com_timeout  < COM_MAX)
+			&& (idle_timeout >= WAKEIDLE_MIN && idle_timeout < WAKEIDLE_MAX);
 
 	// Verilator lint_on  WIDTH
 	// }}}
@@ -195,65 +192,52 @@ module mdl_srxcomsigs #(
 	//
 	// COMRESET / COMWAKE : State machine
 	// {{{
-	always @(posedge sclk)
+	always @(posedge i_clk or posedge i_reset)
 	if (i_reset)
 	begin
 		reset_state <= POR_RESET;
 		oob_count  <= 0;
 		o_comreset <= 0;
 		o_comwake  <= 0;
-	end else if (w_comreset)
+	end else if (w_comreset || w_comwake)
 	begin
-		reset_state <= FSM_COMRESET;
 		if (!oob_count[OOBMSB])
 			oob_count <= oob_count + 1;
-		o_comreset <= (oob_count >= RESET_BURSTS);
-		o_comwake  <= 0;
 	end else case(reset_state)
-	POR_RESET: oob_count <= 0;	// Wait for comreset
-	FSM_COMRESET: begin
-		// Verilator lint_off WIDTH
-		if (idle_timeout >= COMRESET_MIN)
-		begin
-			// Verilator lint_on  WIDTH
-			reset_state <= FSM_DEVINIT;
-			oob_count   <= 0;
+	POR_RESET: begin
+			reset_state <= FSM_COMRESET;
+			oob_count 	<= 0;
 			o_comreset  <= 1'b0;
-			o_comwake   <= 0;
-		end end
-	FSM_DEVINIT: if (w_comwake)
-		begin
-			if (!oob_count[OOBMSB])
-				oob_count <= oob_count + 1;
-			if (oob_count >= 3)
+			o_comwake	<= 1'b0;
+		end
+	FSM_COMRESET: if (oob_count == RESET_BURSTS)
 			begin
-				o_comwake <= 1;
-				reset_state <= FSM_DEVWAKE;
+				reset_state <= FSM_HOSTINIT;
+				oob_count 	<= 0;
+				o_comreset  <= 1'b1;
+			end
+	FSM_HOSTINIT: if (i_cominit_det)
+			reset_state <= FSM_DEVWAKE;
+	FSM_DEVWAKE: begin
+			o_comreset <= 1'b0;
+			if (oob_count == WAKE_BURSTS) begin
+				reset_state <= FSM_HOSTWAKE;
+				oob_count 	<= 0;
+				o_comwake   <= 1'b1;
 			end
 		end
-	FSM_DEVWAKE: begin
-		o_comreset <= 0;
-		o_comwake  <= 1;
-		if (w_comwake && !oob_count[OOBMSB])
-			oob_count <= oob_count + 1;
-		// Verilator lint_off WIDTH
-		if (valid_symbol && !idle && (idle_timeout < COMWAKE_MIN
-				|| idle_timeout >= COMWAKE_MAX))
-			// Verilator lint_on  WIDTH
-		begin
+	FSM_HOSTWAKE: if (i_comwake_det)
 			reset_state <= FSM_RELEASE;
-			o_comwake   <= 0;
-		end end
 	FSM_RELEASE: begin
-		o_comwake <= 0;
-		o_comreset <= 0;
-		oob_count  <= 0;
-		reset_state <= FSM_RELEASE;
+			o_comwake <= 0;
+			o_comreset <= 0;
+			oob_count  <= 0;
+			reset_state <= FSM_RELEASE;
 		end
 	default: begin
-		// Will never get here
-		reset_state <= POR_RESET;
-		oob_count <= 0;
+			// Will never get here
+			reset_state <= POR_RESET;
+			oob_count <= 0;
 		end
 	endcase
 	// }}}

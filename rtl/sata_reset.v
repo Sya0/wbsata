@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2022-2024, Gisselquist Technology, LLC
+// Copyright (C) 2022-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -43,6 +43,7 @@
 module	sata_reset #(
 		parameter real	CLOCK_FREQUENCY_HZ = 75e6	// GEN 1
 	) (
+		// {{{
 		input	wire	i_tx_clk,
 		input	wire	i_rx_clk,
 		// Verilator lint_off SYNCASYNCNET
@@ -51,16 +52,15 @@ module	sata_reset #(
 		input	wire	i_reset_request,
 		input	wire	i_phy_ready,
 		//
-		output	reg	o_tx_elecidle,
-		output	reg	o_tx_cominit,
-		output	reg	o_tx_comwake,
+		output	reg		o_tx_elecidle,
+		output	reg		o_tx_cominit,
+		output	reg		o_tx_comwake,
 		input	wire	i_tx_comfinish,
 		//
 		input	wire	i_rx_elecidle,
 		input	wire	i_rx_cominit,
 		input	wire	i_rx_comwake,
-		output	reg	o_rx_cdrhold,	// Freeze RX clk+data ctrl loop
-		input	wire	i_rx_cdrlock,	// Clock and data lock indicator
+		output	reg		o_rx_cdrhold,	// Freeze RX clk+data ctrl loop
 		//
 		input	wire		i_tx_primitive,
 		input	wire	[31:0]	i_tx_data,
@@ -72,28 +72,35 @@ module	sata_reset #(
 		input	wire		i_rx_valid,
 		input	wire	[32:0]	i_rx_data,
 		//
-		output	reg		o_link_up
+		output	reg		o_link_up,
+		//
+		// o_debug is set to the tx_clk domain
+		output	reg	[31:0]	o_debug
+		// }}}
 	);
 
+	// Local declarations
+	// {{{
 `include "sata_primitives.vh"
 
-	localparam [3:0]	HR_RESET		= 4'h0,
+	localparam [3:0]	HR_RESET	= 4'h0,
 				HR_ISSUE_COMINIT	= 4'h1,
 				HR_AWAIT_RXCOMINIT	= 4'h2,
 				HR_AWAIT_ENDOFINIT	= 4'h3,
 				HR_CALIBRATE		= 4'h4,
-				HR_COMWAKE		= 4'h5,
+				HR_COMWAKE			= 4'h5,
 				HR_AWAIT_RXCOMWAKE	= 4'h6,
 				HR_AWAIT_RXCLRWAKE	= 4'h7,
 				HR_AWAIT_ALIGN		= 4'h8,
-				HR_READY		= 4'h9,
-				HR_AWAIT_RXCLRINIT	= 4'ha;
+				// HR_SEND_ALIGN	= 4'h9,
+				HR_READY		= 4'ha,
+				HR_AWAIT_RXCLRINIT	= 4'hb;
 
 	// Watchdog wait time is given in SATA chap 8, OOB and PHY POWER STATES.
 	// We need to wait 873.8 us (32768 Gen1 DWORDS) before moving on
 	localparam	WATCHDOG_TIMEOUT = $rtoi(873.8e-6 * CLOCK_FREQUENCY_HZ);
 	localparam	LGWATCHDOG = $clog2(WATCHDOG_TIMEOUT+1);
-	localparam	MIN_ALIGNMENT = $rtoi(116.3e-6 * CLOCK_FREQUENCY_HZ)+4;
+	localparam	MIN_ALIGNMENT = $rtoi(116.3e-9 * CLOCK_FREQUENCY_HZ)+4;
 	localparam	LGALIGN = $clog2(MIN_ALIGNMENT+1);
 
 	reg		rx_reset;
@@ -101,19 +108,25 @@ module	sata_reset #(
 
 	wire		rx_elecidle, rx_cominit, rx_comwake;
 	reg	[1:0]	pipe_rx_elecidle, pipe_rx_cominit, pipe_rx_comwake,
-			pipe_rx_cdrlock, pipe_phy_ready, pipe_rx_align;
+			pipe_phy_ready, pipe_rx_align;
 	reg		ck_rx_elecidle, ck_rx_cominit, ck_rx_comwake,
-			ck_rx_cdrlock, ck_phy_ready, ck_rx_align;
+			ck_phy_ready, ck_rx_align;
 
 	reg	[3:0]	fsm_state;
 
 	wire		w_rx_align, rx_align;
+	// FIXME--these should be used for ... something
+	// Verilator lint_off UNUSED
+	wire		w_rx_sync, rx_sync;
+	// Verilator lint_on  UNUSED
 	reg				retry_timeout;
 	reg	[LGWATCHDOG-1:0]	watchdog_counter;
 
 	reg	[LGALIGN-1:0]	min_alignment_counter;
 	reg			check_alignment;
 
+	reg	[3:0]	pdecode;	// Only used for debug
+	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Move the RX COM detect signals to the TX clock domain
@@ -152,7 +165,7 @@ module	sata_reset #(
 		.o_sig(rx_comwake)
 	);
 
-	assign	w_rx_align = i_rx_valid && i_rx_data == P_ALIGN;
+	assign	w_rx_align = i_rx_valid && i_rx_data[31:0] == P_ALIGN[31:0];
 
 	sata_pextend #(
 		.COUNTS(3)
@@ -162,13 +175,22 @@ module	sata_reset #(
 		.o_sig(rx_align)
 	);
 
+	assign	w_rx_sync = i_rx_valid && i_rx_data == P_SYNC;
+
+	sata_pextend #(
+		.COUNTS(3)
+	) u_extend_rxsync (
+		.i_clk(i_rx_clk), .i_reset(rx_reset),
+		.i_sig(w_rx_sync),
+		.o_sig(rx_sync)
+	);
+
 	always @(posedge i_tx_clk or negedge i_reset_n)
 	if (!i_reset_n)
 	begin
 		{ ck_rx_elecidle, pipe_rx_elecidle } <= 0;
 		{ ck_rx_cominit, pipe_rx_cominit } <= 0;
 		{ ck_rx_comwake, pipe_rx_comwake } <= 0;
-		{ ck_rx_cdrlock, pipe_rx_cdrlock } <= 0;
 		{ ck_phy_ready,  pipe_phy_ready } <= 0;
 	end else begin
 		{ ck_rx_elecidle, pipe_rx_elecidle }
@@ -177,9 +199,6 @@ module	sata_reset #(
 					<= { pipe_rx_cominit, rx_cominit };
 		{ ck_rx_comwake, pipe_rx_comwake }
 					<= { pipe_rx_comwake, rx_comwake };
-
-		{ ck_rx_cdrlock, pipe_rx_cdrlock }
-					<= { pipe_rx_cdrlock, i_rx_cdrlock };
 
 		{ ck_phy_ready, pipe_phy_ready }
 					<= { pipe_phy_ready, i_phy_ready };
@@ -203,14 +222,14 @@ module	sata_reset #(
 	initial	o_tx_comwake  = 1'b0;
 	initial	o_tx_elecidle = 1'b1;
 	initial	o_link_up     = 1'b0;
+
 	always @(posedge i_tx_clk)
-	if (!i_reset_n)
-	begin
+	if (!i_reset_n) begin
 		fsm_state <= HR_RESET;
 
 		o_tx_cominit   <= 1'b0;
 		o_tx_comwake   <= 1'b0;
-		o_tx_elecidle  <= 1'b0;
+		o_tx_elecidle  <= 1'b1;
 		o_rx_cdrhold   <= 1'b1;
 
 		o_link_up      <= 1'b0;
@@ -219,8 +238,8 @@ module	sata_reset #(
 	end else begin
 		o_tx_cominit   <= 1'b0;
 		o_tx_comwake   <= 1'b0;
-		o_tx_elecidle  <= 1'b0;
-		o_rx_cdrhold   <= 1'b0;
+		o_tx_elecidle  <= 1'b1;
+		o_rx_cdrhold   <= 1'b1;
 
 		o_link_up      <= 1'b0;
 		{ o_phy_primitive, o_phy_data } <= P_ALIGN;
@@ -231,24 +250,22 @@ module	sata_reset #(
 			o_rx_cdrhold  <= 1'b1;
 			// Wait for the PHY to come out of any reset before
 			// continuing
-			if (ck_phy_ready)
-			begin
+			if (ck_phy_ready) begin
 				fsm_state <= HR_ISSUE_COMINIT;
 				o_tx_cominit  <= 1'b1;
-				o_tx_elecidle <= 1'b0;
+				// o_tx_elecidle <= 1'b0;
 			end end
 		HR_ISSUE_COMINIT: begin
 			// {{{
 			// Issue COMRESET, and wait for the PHY (not the device
 			// yet) to acknowledge it before continuing.
-			o_tx_elecidle <= 1'b0;
+			o_tx_cominit  <= 1'b0;
+			o_tx_elecidle <= 1'b1;
 			o_rx_cdrhold  <= 1'b1;
 
-			if (i_tx_comfinish)
-			begin
+			if (i_tx_comfinish == 1'b1)
 				fsm_state <= HR_AWAIT_RXCOMINIT;
-				o_tx_elecidle <= 1'b1;
-			end end
+		end
 			// }}}
 		HR_AWAIT_RXCOMINIT: begin
 			// {{{
@@ -322,9 +339,12 @@ module	sata_reset #(
 			// The last step in the handshake is to lock to an
 			// align primitive.  We'll wait here until we lock,
 			// before moving on.
-			{ o_phy_primitive, o_phy_data } <= P_ALIGN;
-			if (ck_rx_cdrlock && ck_rx_align && !ck_rx_elecidle
-					&& check_alignment)
+			o_rx_cdrhold  <= 1'b0;
+			{ o_phy_primitive, o_phy_data } <= D10_2;
+			if (!ck_rx_elecidle) begin
+				o_tx_elecidle <= 1'b0;
+			end
+			if (ck_rx_align && !ck_rx_elecidle && check_alignment)
 				fsm_state <= HR_READY;
 			if (retry_timeout)	// 870us allowed
 				fsm_state <= HR_RESET;
@@ -337,6 +357,8 @@ module	sata_reset #(
 		HR_READY: begin
 			// {{{
 			o_link_up <= 1'b1;
+			o_tx_elecidle <= 1'b0;
+			o_rx_cdrhold   <= 1'b0;
 			{ o_phy_primitive, o_phy_data }
 					<= { o_phy_primitive, o_phy_data };
 			if (o_tx_ready)
@@ -355,6 +377,7 @@ module	sata_reset #(
 			// COMRESET.
 			o_link_up <= 1'b0;
 			o_tx_elecidle <= 1'b1;
+			o_rx_cdrhold   <= 1'b0;
 			if (!ck_rx_cominit)
 				fsm_state <= HR_RESET;
 			end
@@ -385,9 +408,9 @@ module	sata_reset #(
 	begin
 		watchdog_counter <= WATCHDOG_TIMEOUT[LGWATCHDOG-1:0];
 		retry_timeout    <= 0;
-	end else if (watchdog_counter != 0)
-	begin
-		watchdog_counter <= watchdog_counter - 1;
+	end else begin
+		if (watchdog_counter != 0)
+			watchdog_counter <= watchdog_counter - 1;
 		retry_timeout    <= (watchdog_counter <= 1);
 	end
 	// }}}
@@ -413,5 +436,67 @@ module	sata_reset #(
 		min_alignment_counter <= min_alignment_counter - 1;
 		check_alignment <= (min_alignment_counter <= 1);
 	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Generate a debugging output -- in the TX clock domain
+	// {{{
+	always @(*)
+	begin
+		pdecode = 0;
+		if (i_tx_data == P_ALIGN[31:0])  pdecode = 1;
+		if (i_tx_data == P_CONT[31:0])   pdecode = pdecode | 2;
+		if (i_tx_data == P_DMAT[31:0])   pdecode = pdecode | 3;
+		if (i_tx_data == P_EOF[31:0])    pdecode = pdecode | 4;
+		if (i_tx_data == P_HOLD[31:0])   pdecode = pdecode | 5;
+		if (i_tx_data == P_HOLDA[31:0])  pdecode = pdecode | 6;
+		if (i_tx_data == P_SOF[31:0])    pdecode = pdecode | 7;
+		if (i_tx_data == P_SYNC[31:0])   pdecode = pdecode | 8;
+		if (i_tx_data == P_R_IP[31:0])   pdecode = pdecode | 9;
+		if (i_tx_data == P_R_OK[31:0])   pdecode = pdecode | 10;
+		if (i_tx_data == P_R_RDY[31:0])  pdecode = pdecode | 11;
+		if (i_tx_data == P_X_RDY[31:0])  pdecode = pdecode | 12;
+		if (i_tx_data == P_R_ERR[31:0])  pdecode = pdecode | 13;
+		if (i_tx_data == P_WTRM[31:0])   pdecode = pdecode | 14;
+
+		if (!i_tx_primitive || o_tx_elecidle)
+			pdecode = 4'hf;
+	end
+
+	always @(posedge i_tx_clk)
+	begin
+		o_debug <= 0; // Default everything to zero
+
+		// Any change in link up is a reason to trigger the scope
+		o_debug[31] <= (o_tx_ready != o_debug[16]);
+
+		o_debug[23] <= o_phy_primitive;
+		o_debug[22] <= o_link_up;
+		o_debug[21:18] <= pdecode;
+		o_debug[17] <= i_tx_primitive && !o_tx_elecidle;
+		o_debug[16] <= o_tx_ready;
+		o_debug[15] <= o_tx_elecidle;
+		o_debug[14] <= o_tx_cominit;
+		o_debug[13] <= o_tx_comwake;
+		o_debug[12] <= i_tx_comfinish;
+		o_debug[11] <= ck_rx_elecidle;
+		o_debug[10] <= ck_rx_cominit;
+		o_debug[9] <= ck_rx_comwake;
+		o_debug[8] <= ck_phy_ready;
+		o_debug[7] <= ck_rx_align;
+		o_debug[6] <= retry_timeout;
+		o_debug[5] <= (watchdog_counter < WATCHDOG_TIMEOUT[LGWATCHDOG-1:0]);
+		o_debug[4] <= check_alignment;
+		// check_alignment
+		o_debug[3:0] <= fsm_state;
+	end
+	// }}}
+
+	// Keep Verilator happy
+	// {{{
+	// Verilator lint_off UNUSED
+	wire	unused;
+	assign	unused = &{ 1'b0 };
+	// Verilator lint_on  UNUSED
 	// }}}
 endmodule

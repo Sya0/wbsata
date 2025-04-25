@@ -1,0 +1,90 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Sun Sep 29 11:01:53 2024
+[*]
+[dumpfile] "/home/sukru/ZN/Side_Job/wbsata/bench/verilog/waveform.vcd"
+[dumpfile_mtime] "Sun Sep 29 10:59:57 2024"
+[dumpfile_size] 2003805
+[savefile] "/home/sukru/ZN/Side_Job/wbsata/bench/verilog/sata_model.gtkw"
+[timestart] 247100
+[size] 1920 1123
+[pos] -1 -1
+*-11.674119 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] sata_model.
+[treeopen] sata_model.u_comfsm.
+[treeopen] sata_model.u_oob.
+[sst_width] 276
+[signals_width] 245
+[sst_expanded] 1
+[sst_vpaned_height] 341
+@800200
+-OOB
+@28
+sata_model.u_oob.i_clk
+sata_model.u_oob.i_rst
+@22
+sata_model.u_oob.alignp_inst.align_p[39:0]
+@28
+sata_model.u_oob.alignp_inst.burst_en
+@24
+sata_model.u_oob.burst_cnt[7:0]
+@25
+sata_model.u_oob.idle_cnt[9:0]
+@28
+sata_model.u_oob.o_tx_p
+sata_model.u_oob.o_tx_n
+@1000200
+-OOB
+@200
+-
+@800200
+-comdet
+@28
+sata_model.u_comfsm.u_comdet.i_clk
+@24
+sata_model.u_comfsm.u_comdet.reset_state[2:0]
+@28
+sata_model.u_comfsm.u_comdet.i_rx_p
+sata_model.u_comfsm.u_comdet.i_rx_n
+sata_model.u_comfsm.u_comdet.valid_symbol
+@24
+sata_model.u_comfsm.u_comdet.oob_count[4:0]
+sata_model.u_comfsm.u_comdet.idle_timeout[12:0]
+sata_model.u_comfsm.u_comdet.com_timeout[12:0]
+@22
+sata_model.u_comfsm.u_comdet.sreg[39:0]
+@28
+sata_model.u_comfsm.u_comdet.align_p
+sata_model.u_comfsm.u_comdet.det_p
+sata_model.u_comfsm.u_comdet.com_detect
+sata_model.u_comfsm.u_comdet.w_comreset
+sata_model.u_comfsm.u_comdet.w_comwake
+sata_model.u_comfsm.u_comdet.o_comreset
+sata_model.u_comfsm.u_comdet.o_comwake
+@1000200
+-comdet
+@200
+-
+@800200
+-comfsm
+@28
+sata_model.u_comfsm.u_comdet.sclk
+@24
+sata_model.u_comfsm.fsm_state[2:0]
+@28
+sata_model.u_comfsm.i_rx_p
+sata_model.u_comfsm.i_rx_n
+sata_model.u_comfsm.u_comdet.det_p
+sata_model.u_comfsm.u_comdet.align_p
+sata_model.u_comfsm.w_comreset
+sata_model.u_comfsm.w_comwake
+@24
+sata_model.u_comfsm.idle_count[8:0]
+@28
+sata_model.u_comfsm.burst_count[2:0]
+sata_model.u_comfsm.ck_comreset
+sata_model.u_comfsm.ck_comwake
+@1000200
+-comfsm
+[pattern_trace] 1
+[pattern_trace] 0

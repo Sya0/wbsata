@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2021-2024, Gisselquist Technology, LLC
+// Copyright (C) 2021-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -98,11 +98,14 @@ module	sata_controller #(
 		input	wire		i_rxphy_cominit,
 		input	wire		i_rxphy_comwake,
 		output	wire		o_rxphy_cdrhold,
-		input	wire		i_rxphy_cdrlock,
 		//
 		output	wire		o_phy_reset,
-		input	wire		i_phy_ready
+		input	wire		i_phy_ready,
+		output	wire		o_lnk_ready,
 		// }}}
+		output	wire	[31:0]	o_dbg_reset,
+					o_dbg_link,
+					o_dbg_tran
 		// }}}
 	);
 
@@ -127,12 +130,21 @@ module	sata_controller #(
 	wire		tx_link_primitive;
 	wire	[31:0]	tx_link_data;
 	wire		link_reset_request;
+	reg		rx_linkup, rx_linkup_xpipe;
 	// }}}
 
 	assign	cfg_continue_en  = 1'b1;
 	assign	cfg_scrambler_en = 1'b1;
 	assign	cfg_crc_en       = 1'b1;
 	assign	o_phy_reset	= i_reset;
+	assign	o_lnk_ready = link_ready;
+
+	initial	{ rx_linkup, rx_linkup_xpipe } = 2'b00;
+	always @(posedge i_rxphy_clk or posedge o_phy_reset)
+	if (o_phy_reset)
+		{ rx_linkup, rx_linkup_xpipe } <= 2'b00;
+	else
+		{ rx_linkup, rx_linkup_xpipe } <= { rx_linkup_xpipe, comlink_up };
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Transport layer
@@ -183,8 +195,9 @@ module	sata_controller #(
 		.i_tran_abort(d2h_tran_abort),
 		//
 		.i_link_err(link_error),
-		.i_link_ready(link_ready && comlink_up)
+		.i_link_ready(link_ready && comlink_up),
 		// }}}
+		.o_debug(o_dbg_tran)		// WB clock domain
 		// }}}
 	);
 	// }}}
@@ -229,14 +242,15 @@ module	sata_controller #(
 		// PHY interface
 		// {{{
 		.i_rx_clk(i_rxphy_clk),
-		.i_rx_valid(i_rxphy_valid && comlink_up),
+		.i_rx_valid(rx_linkup),
 		.i_rx_data(i_rxphy_data),
 		//
 		.o_phy_primitive(tx_link_primitive),
 		.o_phy_data(tx_link_data),
 		.o_phy_reset(link_reset_request),
-		.i_phy_ready(tx_link_ready)
+		.i_phy_ready(tx_link_ready),
 		// }}}
+		.o_debug(o_dbg_link)		// TX clock domain
 		// }}}
 	);
 	// }}}
@@ -268,7 +282,6 @@ module	sata_controller #(
 		.i_rx_elecidle(i_rxphy_elecidle),
 		.i_rx_cominit(i_rxphy_cominit),
 		.i_rx_comwake(i_rxphy_comwake),
-		.i_rx_cdrlock(i_rxphy_cdrlock),
 		// }}}
 		// Data
 		// {{{
@@ -286,7 +299,8 @@ module	sata_controller #(
 		.i_phy_ready(i_txphy_ready),
 		// }}}
 		//
-		.o_link_up(comlink_up)		// TX clock domain
+		.o_link_up(comlink_up),		// TX clock domain
+		.o_debug(o_dbg_reset)		// TX clock domain
 	);
 
 	// }}}

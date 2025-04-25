@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2021-2024, Gisselquist Technology, LLC
+// Copyright (C) 2021-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //

@@ -47,7 +47,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2023-2024, Gisselquist Technology, LLC
+// Copyright (C) 2023-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -76,6 +76,9 @@
 // }}}
 module	sata_model (
 		// {{{
+		// input	wire		i_phy_ready,
+		// input	wire		i_comfinish,
+		// input	wire		i_cominit_det, i_comwake_det,
 		input	wire		i_rx_p, i_rx_n,
 		output	wire		o_tx_p, o_tx_n
 		// }}}
@@ -84,11 +87,29 @@ module	sata_model (
 	// Local parameters
 	// {{{
 	// 1500Mb/s -- could also be 3000Mb/s or 6000Mb/s
-	localparam	realtime	TXCLK_PERIOD= 1.0/1.5;	// ns
+	localparam	realtime	TXCLK_PERIOD	= 1.0/1.5;	// ns
+	localparam	realtime	RXCLK_PERIOD	= 1.0/1.5;
+	localparam	realtime	SYSCLK_PERIOD	= 16.667;
+	localparam	realtime	DCLK_PERIOD	= 16.667;
+
+	// OOB timings (check page 209-210 in SATA doc.)
+	localparam	realtime	T_COMRESET_BURST = 107;	// 106.7 ns (Nominal)
+	localparam	realtime	T_COMRESET_GAP   = 320;	// 320.0 ns (Nominal)
+	localparam 	realtime	T_COMCALIBRATE 	 = 150;
+	localparam	realtime	T_COMWAKE_BURST  = 107;	// 106.7 ns (Nominal)
+	localparam	realtime	T_COMWAKE_GAP    = 107;	// 106.7 ns (Nominal)
+	localparam 	realtime	T_COMINIT_MIN	 = 100;	// COMINIT için minimum yüksek süre
+	localparam 	realtime	T_COMINIT_MAX	 = 110;	// COMINIT için maksimum yüksek süre
+	localparam 	realtime	T_COMWAKE_MIN	 = 100;	// COMWAKE için minimum yüksek süre
+	localparam 	realtime	T_COMWAKE_MAX	 = 110;	// COMWAKE için maksimum yüksek süre
+
+	reg [31:0]  counter;
+	wire     rx_p, rx_n;
 
 	reg		mdl_reset, txclk;
 	wire		mdl_reset_request, mdl_phy_down;
-	wire		rxclk, tx_wire;
+	wire		rxclk;
+	wire	[39:0]	tx_word;
 	wire		rx_valid, rx_ctrl;
 	wire	[31:0]	rx_data;
 
@@ -108,12 +129,14 @@ module	sata_model (
 			txaxin_success, txaxin_failed;
 	wire	[31:0]	txaxin_data;
 
+	reg		clk_sync;
+	reg		[8:0] idle_cnt;
+
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Reset, tx clock, and setup
 	// {{{
-
 	initial txclk = 1'b0;
 	always
 		// Verilator lint_off BLKSEQ
@@ -123,7 +146,8 @@ module	sata_model (
 	initial begin
 		mdl_reset <= 1'b1;
 		#15;
-		mdl_reset <= 1'b0;
+		@(posedge txclk)
+			mdl_reset <= 1'b0;
 	end
 
 	initial tx_word_count = 0;
@@ -135,17 +159,16 @@ module	sata_model (
 
 	assign	txwclk = (tx_word_count > 19);
 
-
 	// COMWAKE, COMRESET, COMINIT, etc.
 	mdl_scomfsm
 		// Uses: mdl_srxcomsigs
 	u_comfsm (
 		// {{{
 		.i_txclk(txclk),
-		.i_reset(mdl_reset || mdl_reset_request),
+		.i_reset(mdl_reset),
 		.o_reset(mdl_phy_down),
 		.i_rx_p(i_rx_p), .i_rx_n(i_rx_n),
-		.i_tx(tx_wire),
+		.i_tx_word(tx_word),
 		.o_tx_p(o_tx_p), .o_tx_n(o_tx_n)
 		// }}}
 	);
@@ -156,6 +179,7 @@ module	sata_model (
 	// RX Chain
 	// {{{
 
+	// Recover the RX Clock from the bit stream
 	mdl_sbitsync
 	u_bitsync (
 		.i_reset(mdl_reset),
@@ -165,7 +189,7 @@ module	sata_model (
 
 	mdl_salign
 		// Uses:
-		//	mdl_s10b8bw which uses mdl_s10b8b
+		// mdl_s10b8bw which uses mdl_s10b8b
 	u_rxalign (
 		// {{{
 		.i_clk(rxclk),
@@ -189,15 +213,14 @@ module	sata_model (
 	mdl_txword
 	u_txword (
 		// {{{
-		.i_clk(txclk),
+		.i_clk(txwclk),
 		.i_reset(mdl_reset || mdl_phy_down),
-		.i_cfg_speed(2'b0),
 		.S_VALID(linktx_valid),
 		.S_READY(linktx_ready),
 		.S_CTRL( linktx_ctrl),
 		.S_DATA( linktx_data),
 		//
-		.o_tx(tx_wire)
+		.o_tx_word(tx_word)
 		// }}}
 	);
 
@@ -243,22 +266,49 @@ module	sata_model (
 		.o_phy_primitive(linktx_ctrl),
 		.o_phy_data(linktx_data),
 		.o_phy_reset(mdl_reset_request),
-		.i_phy_ready(linktx_ready)
+		.i_phy_ready(!mdl_phy_down)
+	);
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// SATA Command processor
+	// {{{
+
+	mdl_satacmd 
+	u_mdl_satacmd (
+		// {{{
+		.i_tx_clk(txwclk), .i_phy_clk(rxclk),
+		.i_reset(mdl_reset || mdl_phy_down), .i_phy_reset(mdl_reset_request),
+		.s_valid(rxaxin_valid),
+		// .s_ready,
+		.s_full(rxaxin_full),
+		.s_empty(rxaxin_empty),
+		.s_data(rxaxin_data),
+		.s_last(rxaxin_last),
+		.s_abort(rxaxin_abort),
+		//
+		.m_valid(txaxin_valid),
+		.m_ready(txaxin_ready),
+		.m_data(txaxin_data),
+		.m_last(txaxin_last)
+		// .m_abort	// TX aborts
+		// }}}
 	);
 	// }}}
 
-	assign	txaxin_valid = 1'b0;
-	assign	txaxin_data  = 32'h0;
-	assign	txaxin_last  = 1'b0;
-	assign	rxaxin_full  = 1'b0;
-	assign	rxaxin_empty = 1'b1;
+	// initial begin
+	// 	$dumpfile("waveform.vcd");
+	// 	$dumpvars(0, sata_model);
+	// end
 
 	assign	linktx_valid = 1'b1;
 
+	// Keep Verilator happy
+	// {{{
 	// Verilator lint_off UNUSED
 	wire	unused;
-	assign	unused = &{ 1'b0, mdl_link_ready, mdl_link_err,
-			txaxin_ready, txaxin_success, txaxin_failed,
-			rxaxin_valid, rxaxin_data, rxaxin_last, rxaxin_abort };
+	assign	unused = &{ 1'b0, mdl_link_ready, mdl_link_err, linktx_ready,
+				txaxin_success, txaxin_failed };
 	// Verilator lint_on  UNUSED
+	// }}}
 endmodule

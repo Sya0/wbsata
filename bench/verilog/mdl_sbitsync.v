@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2022-2024, Gisselquist Technology, LLC
+// Copyright (C) 2022-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -56,7 +56,7 @@ module	mdl_sbitsync (
 	realtime	prise, pfall, nextedge = 0;
 
 	wire	dlybit, autoprod;
-	reg	clkgate, rxclk;
+	reg		clkgate, rxclk;
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -87,40 +87,40 @@ module	mdl_sbitsync (
 	// a buad interval
 
 	always @(posedge autoprod)
-		prise <= $time;
+		prise <= $realtime;
 
 	always @(negedge autoprod)
 	begin
-		pfall <= $time;
+		pfall <= $realtime;
 		// if (pfall > prise && pfall - prise <= 3.0*NOMINAL_BAUD/4.0)
 		//	pcenter = prise + (pfall - prise)/2;
 
-		if (pfall - prise < NOMINAL_BAUD/2.0)
-			rxclk <= #(NOMINAL_BAUD/2.0 - (pfall - prise)/2) 1'b0;
+		if ($realtime - prise < NOMINAL_BAUD/2.0)
+			rxclk <= #(NOMINAL_BAUD/2.0 - ($realtime - prise)/2) 1'b0;
 		else
 			rxclk <= 0;
 
 		// Center the rise of the next clock on the middle of this
 		// baud interval
-		rxclk <= #(NOMINAL_BAUD - ($time - prise)/2) 1'b1;
+		rxclk <= #(NOMINAL_BAUD - ($realtime - prise)/2) 1'b1;
 
 		// Note the time of lock, lest rxclk rise early (in the next
 		// block ...)
-		nextedge <= $time + (NOMINAL_BAUD - ($time - prise)/2);
+		nextedge <= $realtime + (NOMINAL_BAUD - ($realtime - prise)/2);
 	end
 	// }}}
 
 	initial	rxclk = 0;
-	always @(posedge rxclk)
-	begin
+	always @(posedge rxclk) begin
 		// Schedule the clock to fall and then rise again.
 		//
-		if(($time < nextedge)&&((nextedge - $time) < 0.5*NOMINAL_BAUD))
+		nextedge <= $realtime + (NOMINAL_BAUD/2);
+		if(($realtime < nextedge)&&((nextedge - $realtime) < 0.5*NOMINAL_BAUD))
 		begin
 			// We rose too early.  The "official" nextedge hasn't
 			// happened yet.  Lock to it anyway.
-			rxclk <= #((nextedge-$time) + baud_period/2.0) 0;
-			rxclk <= #((nextedge-$time) + baud_period) 1;
+			rxclk <= #((nextedge-$realtime) + baud_period/2.0) 0;
+			rxclk <= #((nextedge-$realtime) + baud_period) 1;
 			//
 			// else ... we can't rise too late.  If we are locked
 			// and scheduled to rise, and we re-lock on a transition
@@ -133,7 +133,7 @@ module	mdl_sbitsync (
 		end else begin
 			// Just maintain our last lock
 			rxclk <= #(baud_period/2.0) 0;
-			rxclk <= #(baud_period/2.0) 1;
+			rxclk <= #(baud_period) 1;
 		end
 	end
 

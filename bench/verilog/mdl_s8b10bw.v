@@ -24,7 +24,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2022-2024, Gisselquist Technology, LLC
+// Copyright (C) 2022-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -76,25 +76,25 @@ module	mdl_s8b10bw #(
 
 	mdl_s8b10b
 	u_b0 (
-		.S_DATA({ running_disparity, S_CTRL, S_DATA[7:0] }),
+		.S_DATA({ running_disparity, S_CTRL, S_DATA[31:24] }),
 		.M_DATA({ d0, w_data[39:30] })	// Transmitted *first*
 	);
 
 	mdl_s8b10b
 	u_b1 (
-		.S_DATA({ d0, 1'b0, S_DATA[15:8] }),
+		.S_DATA({ d0, 1'b0, S_DATA[23:16] }),
 		.M_DATA({ d1, w_data[29:20] })
 	);
 
 	mdl_s8b10b
 	u_b2 (
-		.S_DATA({ d1, 1'b0, S_DATA[23:16] }),
+		.S_DATA({ d1, 1'b0, S_DATA[15:8] }),
 		.M_DATA({ d2, w_data[19:10] })
 	);
 
 	mdl_s8b10b
 	u_b3 (
-		.S_DATA({ d2, 1'b0, S_DATA[31:24] }),
+		.S_DATA({ d2, 1'b0, S_DATA[7:0] }),
 		.M_DATA({ d3, w_data[9:0] })
 	);
 

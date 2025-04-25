@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2022-2024, Gisselquist Technology, LLC
+// Copyright (C) 2022-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -67,36 +67,36 @@ module	mdl_s10b8bw #(
 
 	mdl_s10b8b
 	u_b0 (
-		.S_DATA(S_DATA[39:30]),
-		.M_DATA({ w_ctrl[0], w_data[7:0] })
+		.S_DATA(S_DATA[9:0]),
+		.M_DATA({ w_ctrl[3], w_data[7:0] })
 	);
 
 	mdl_s10b8b
 	u_b1 (
-		.S_DATA(S_DATA[29:20]),
-		.M_DATA({ w_ctrl[1], w_data[15:8] })
+		.S_DATA(S_DATA[19:10]),
+		.M_DATA({ w_ctrl[2], w_data[15:8] })
 	);
 
 	mdl_s10b8b
 	u_b2 (
-		.S_DATA(S_DATA[19:10]),
-		.M_DATA({ w_ctrl[2], w_data[23:16] })
+		.S_DATA(S_DATA[29:20]),
+		.M_DATA({ w_ctrl[1], w_data[23:16] })
 	);
 
 	mdl_s10b8b
 	u_b3 (
-		.S_DATA(S_DATA[9:0]),
-		.M_DATA({ w_ctrl[3], w_data[31:24] })
+		.S_DATA(S_DATA[39:30]),
+		.M_DATA({ w_ctrl[0], w_data[31:24] })
 	);
 
 	assign	nxt_illegal = S_VALID && ((|w_ctrl[3:1])
-			|| (w_ctrl[0] && w_data[6:0] != 7'h7c));
-	assign	nxt_ctrl = S_VALID && w_ctrl[0] && w_data[6:0] == 7'h7c;
+			|| (w_ctrl[0] && ((w_data[31:24] != 8'h7C) && (w_data[31:24] != 8'hBC))));
+	assign	nxt_ctrl = S_VALID && w_ctrl[0] && ((w_data[31:24] == 8'h7C) || (w_data[31:24] == 8'hBC));
 	assign	nxt_data = S_VALID ? w_data : 32'h0;
 
 	generate if (OPT_REGISTERED)
 	begin : GEN_OUTPUT
-		always @(posedge i_clk)
+		always @(posedge i_clk or i_reset)
 		if (i_reset)
 			M_VALID <= 1'b0;
 		else if (!M_VALID || M_READY)
@@ -123,15 +123,7 @@ module	mdl_s10b8bw #(
 			M_CTRL   = nxt_ctrl;
 			M_DATA   = nxt_data;
 		end
-
-		// Make Verilator happy
-		// {{{
-		// Verilator lint_off UNUSED
-		wire	unused;
-		assign	unused = &{ 1'b0, i_clk, i_reset };
-		// Verilator lint_on  UNUSED
-		// }}}
 	end endgenerate
 
-	assign	S_READY = !M_VALID || M_READY;
+	assign	S_READY = 1'b1; // !M_VALID || M_READY;
 endmodule

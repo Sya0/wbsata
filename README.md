@@ -19,45 +19,54 @@ A couple quick features of this controller:
 
 ## Hardware
 
-My test setup is (at present) an [Enclustra
-Mercury+ST1](https://www.enclustra.com/en/products/base-boards/mercury-st1/)
-board with an [Enclustra Kintex-7
-160T](https://www.enclustra.com/en/products/fpga-modules/mercury-kx2/)
-daughter board, connected to an
-[Ospero FPGA Drive FMC](https://opsero.com/product/fpga-drive-fmc-dual/).
+I have two test setups presently.
+
+1. The first is an [Enclustra
+   Mercury+ST1](https://www.enclustra.com/en/products/base-boards/mercury-st1/)
+   board with an [Enclustra Kintex-7
+   160T](https://www.enclustra.com/en/products/fpga-modules/mercury-kx2/)
+   daughter board, connected to an
+   [Ospero FPGA Drive FMC](https://opsero.com/product/fpga-drive-fmc-dual/).
+   My [Kimos](https://github.com/ZipCPU/kimos) project uses this hardware, and
+   so I have plans to integrate the WBSATA project into it for testing.  Sadly,
+   the [Ospero FPGA Drive
+   FMC](https://opsero.com/product/fpga-drive-fmc-dual/) only contains a 100MHz
+   reference, whereas SATA on a Series-7 Xilinx device requires either a 150MHz
+   or a 200MHz reference.  While the Enclustra board does offer a 200MHz
+   reference, I've been using it for other purposes, and Xilinx won't let me
+   distribute it via BUFG's to get it to the SATA controller.  This is currently
+   requiring a bit of a redesign of my [Kimos](https://github.com/ZipCPU/kimos)
+   project.
+
+2. My second test hardware is the [KlusterLab, also known as my 10Gb Ethernet
+   switch](https://github.com/ZipCPU/eth10g).  This is currently the board
+   I am moving towards testing with.
 
 ## Status
 
-While fully funded, this project is currently a
-[work in progress](doc/prjstatus.png).  It is not (yet) fully drafted.  At
-present it needs three significant capabilities before it can move to
-simulation (or hardware) testing:
+While fully funded, this project continues to be a
+[work in progress](doc/prjstatus.png).  It is now fully drafted, and ready
+for hardware testing.
 
-1. A means of issuing and detecting out-of-band signaling: COMINIT, COMRESET,
-   and COMWAKE.
+1. Simulation tests that include out of band signaling now pass.
 
-   Yes, the Xilinx GTX transceiver can handle these, however the
-   logic isn't yet present within the IP to handle the control signals to
-   either generate (on TX) or handle (on RX) these various signals.
+2. Initial, but very limited, simulation tests that interact with hardware
+   also pass.
 
-2. A simulation model.  While I typically use C++ Verilator models, this IP
-   will require a Verilog model to make sure GTX transceiver works as
-   expected--to include the verifying that the out-of-band signals are
-   properly detected and handled.
+3. The project is currently being tested as part of the [10Gb Ethernet
+   project](https://github.com/ZipCPU/eth10g/tree/sata).  As part of testing,
+   three compressed [Wishbone scope](https://github.com/ZipCPU/wbscope)s have
+   been fitted to it.
 
-3. A means of debugging in hardware.  I normally do my hardware debugging using
-   a [Wishbone scope](https://github.com/ZipCPU/wbscope).  This is my intention
-   here as well.  However, the
-   [WBSCOPE](https://github.com/ZipCPU/wbscope) can only capture 32-bits per
-   clock cycle.  In this case, I'll either need to expand that to more bits
-   per clock cycle, or I'll need to choose from among the many critical bits
-   within the IP which 32-bits per cycle are the ones I want to capture.  This
-   little bit of engineering hasn't (yet) taken place.  It needs to take place
-   before I can test on the hardware I have.
+The design (at present) is currently limited to 1500Mb/s, and requires a 150MHz
+reference oscillator.  Work integrating this design into my [Kimos
+project](https://github.com/ZipCPU/kimos) will require that it can be built
+with a 200MHz reference oscillator.  That work remains ongoing, as (apparently)
+the reference oscillator cannot be driven from a BUFG.
+
+I'll update these notes further as more development takes place.
 
 ## License
 
-The project is currently licensed under GPLv3.  The [ETH10G
-project](https://github.com/ZipCPU/eth10g) that will use this capability
-will relicense it under Apache2.
+The project is currently licensed under GPLv3.
 

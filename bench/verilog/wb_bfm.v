@@ -11,7 +11,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2016-2024, Gisselquist Technology, LLC
+// Copyright (C) 2016-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -41,7 +41,7 @@ module	wb_bfm #(
 		parameter AW = 5,
 		parameter DW = 32,
 		parameter LGFIFO = 4,
-		parameter [0:0]	OPT_DEBUG = 1'b0
+		parameter [0:0]	OPT_DEBUG = 1'b1
 	) (
 		// {{{
 		input	wire			i_clk, i_reset,
@@ -98,8 +98,11 @@ module	wb_bfm #(
 			@(posedge i_clk);
 		end
 
-		fifo[fifo_wraddr[LGFIFO-1:0]] = { 1'b1,4'hf, addr[ADDR_WIDTH-1:WBLSB],dat };
-		fifo_wraddr = fifo_wraddr + 1;
+		@(posedge i_clk)
+		begin
+			fifo[fifo_wraddr[LGFIFO-1:0]] <= { 1'b1,4'hf, addr[ADDR_WIDTH-1:WBLSB],dat };
+			fifo_wraddr <= fifo_wraddr + 1;
+		end
 	end endtask
 	// }}}
 
@@ -134,11 +137,15 @@ module	wb_bfm #(
 			@(posedge i_clk);
 		end
 
-		fifo[fifo_wraddr[LGFIFO-1:0]] = { 1'b0, {(DW/8){1'b1}},
-			addr[ADDR_WIDTH-1:WBLSB], {(DW){1'b0}} };
-		fifo_wraddr = fifo_wraddr + 1;
-		read_busaddr= fifo_wraddr;
+		@(posedge i_clk)
+		begin
+			fifo[fifo_wraddr[LGFIFO-1:0]] <= { 1'b0, {(DW/8){1'b1}},
+				addr[ADDR_WIDTH-1:WBLSB], {(DW){1'b0}} };
+			fifo_wraddr <= fifo_wraddr + 1;
+		end
 
+		wait (!i_clk);
+		read_busaddr = fifo_wraddr;
 
 		@(posedge i_clk)
 		begin
@@ -159,7 +166,8 @@ module	wb_bfm #(
 			if (o_wb_cyc && i_wb_err)
 				err_flag <= 1'b1;
 		end wait(!i_clk);
-		while(!err_flag && o_wb_cyc);
+
+		while(!err_flag && o_wb_cyc)
 		begin
 			@(posedge i_clk)
 			begin
@@ -269,4 +277,3 @@ module	wb_bfm #(
 	end
 	// }}}
 endmodule
-

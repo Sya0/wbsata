@@ -11,7 +11,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2021-2024, Gisselquist Technology, LLC
+// Copyright (C) 2021-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -88,8 +88,9 @@ module	sata_link #(
 		output	wire		o_phy_primitive,
 		output	wire	[31:0]	o_phy_data,
 		output	wire		o_phy_reset,
-		input	wire		i_phy_ready
+		input	wire		i_phy_ready,
 		// }}}
+		output	wire	[31:0]	o_debug
 		// }}}
 	);
 
@@ -127,12 +128,11 @@ module	sata_link #(
 		{ rx_reset_n, rx_reset_pipe } <= 3'h0;
 	else
 		{ rx_reset_n, rx_reset_pipe } <= { rx_reset_pipe, 1'b1 };
-	
+
 	// 1. Remove any received continue and align primitives
 	// {{{
-	satalnk_rmcont #(
-		.P_CONT(P_CONT), .P_ALIGN(P_ALIGN)
-	) rm_align (
+	satalnk_rmcont
+	rm_align (
 		.i_clk(i_rx_clk), .i_reset(!rx_reset_n),
 		//
 		.i_valid(i_rx_valid), .i_primitive(i_rx_data[32]),
@@ -151,13 +151,12 @@ module	sata_link #(
 		.i_wclk(i_rx_clk), .i_wr_reset_n(rx_reset_n),
 		//
 		.i_wr(rx_valid_rxck), .i_wr_data(rx_data_rxck),
-			.o_wr_full(ign_rxfifo_full),
+		.o_wr_full(ign_rxfifo_full),
 		//
 		//
 		.i_rclk(i_tx_clk), .i_rd_reset_n(!i_reset),
-
 		.i_rd(1'b1),
-			.o_rd_data(rx_data), .o_rd_empty(rd_fifo_empty)
+		.o_rd_data(rx_data), .o_rd_empty(rd_fifo_empty)
 	);
 
 	assign	rx_valid = !rd_fifo_empty;
@@ -202,8 +201,8 @@ module	sata_link #(
 	//
 	//
 
-	satalnk_fsm #(
-	) link_fsm (
+	satalnk_fsm
+	link_fsm (
 		// {{{
 		.i_clk(i_tx_clk), .i_reset(i_reset),
 		//
@@ -227,7 +226,9 @@ module	sata_link #(
 		.m_phy_valid(pre_phy_valid), .m_phy_ready(pre_phy_ready),
 		.m_phy_data(pre_phy_data),
 		//
-		.o_phy_reset(o_phy_reset), .i_phy_ready(i_phy_ready)
+		.o_phy_reset(o_phy_reset), .i_phy_ready(i_phy_ready),
+		//
+		.o_debug(o_debug)
 		// }}}
 	);
 

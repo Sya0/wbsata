@@ -22,7 +22,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2021-2024, Gisselquist Technology, LLC
+// Copyright (C) 2021-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -104,8 +104,9 @@ module	satatrn_fsm #(
 		// {{{
 		output	reg			o_mm2s_request,
 		input	wire			i_mm2s_busy, i_mm2s_err,
-		output reg [ADDRESS_WIDTH-1:0]	o_mm2s_addr
+		output reg [ADDRESS_WIDTH-1:0]	o_mm2s_addr,
 		// }}}
+		output	reg	[31:0]		o_debug
 		// }}}
 	);
 
@@ -169,6 +170,7 @@ module	satatrn_fsm #(
 
 	reg		s_sop, s_active;
 	reg	[2:0]	s_posn;
+	wire	[31:0]	s_brdata;
 
 	// Verilator lint_off UNUSED
 	wire		SRST, BSY, DRDY, DF, DRQ, ERR;
@@ -180,6 +182,8 @@ module	satatrn_fsm #(
 	assign	DF   = r_command[5];
 	assign	DRQ  = r_command[3];
 	assign	ERR  = r_command[0];
+
+	assign	s_brdata = { s_data[7:0], s_data[15:8], s_data[23:16], s_data[31:24] };
 	// }}}
 
 	// cmd_type, known_cmd
@@ -322,7 +326,7 @@ module	satatrn_fsm #(
 	if (i_reset)
 		s_active <= 0;
 	else if (s_pkt_valid && s_sop)
-		s_active <= (s_data[7:0] == FIS_REG_TO_HOST);
+		s_active <= (s_brdata[7:0] == FIS_REG_TO_HOST);
 
 	always @(posedge i_clk)
 	if (i_reset)
@@ -359,6 +363,7 @@ module	satatrn_fsm #(
 		o_mm2s_request <= 1'b0;
 		o_mm2s_addr    <= 0;
 		//
+		o_tran_req <= 0;
 		r_dma_address <= 0;
 		r_features <= 0;
 		r_command  <= 0;
@@ -370,7 +375,9 @@ module	satatrn_fsm #(
 		return_to_idle <= 1'b0;
 		r_icc      <= 0;
 		r_port     <= 0;
+		r_control	<= 0;
 		r_dma_fail  <= 0;
+		last_fis	<= 0;
 		// }}}
 	end else if (soft_reset)
 	begin
@@ -382,6 +389,7 @@ module	satatrn_fsm #(
 		o_mm2s_request <= 1'b0;
 		o_mm2s_addr    <= 0;
 		//
+		o_tran_req <= 0;
 		r_dma_address <= 0;
 		r_features <= 0;
 		r_command  <= 0;
@@ -393,7 +401,9 @@ module	satatrn_fsm #(
 		return_to_idle <= 1'b0;
 		r_icc      <= 0;
 		r_port     <= 0;
+		r_control	<= 0;
 		r_dma_fail  <= 0;
+		last_fis	<= 0;
 		// }}}
 	end else if (!i_link_up || i_tran_err)
 	begin
@@ -421,31 +431,31 @@ module	satatrn_fsm #(
 	end else begin
 
 		if (s_pkt_valid && s_sop
-				&& ( s_data[7:0] == FIS_REG_TO_HOST
-				  || s_data[7:0] == FIS_SET_DEVBITS
-				  || s_data[7:0] == FIS_PIO_SETUP))
+				&& ( s_brdata[7:0] == FIS_REG_TO_HOST
+				  || s_brdata[7:0] == FIS_SET_DEVBITS
+				  || s_brdata[7:0] == FIS_PIO_SETUP))
 		begin
-			r_features[7:0] <= s_data[31:24];	// ERROR bits
-			r_command       <= s_data[23:16];	// STATUS bits
-			r_int           <= r_int || s_data[14];
+			r_features[7:0] <= s_brdata[31:24];	// ERROR bits
+			r_command       <= s_brdata[23:16];	// STATUS bits
+			r_int           <= r_int || s_brdata[14];
 			// The following bits are part of r_command
-			// BSY  = s_data[23] = r_command[7]
-			// DRDY = s_data[22] = r_command[6]
-			// DF   = s_data[21] = r_command[5]
-			// DRQ  = s_data[19] = r_command[4]
-			// ERR  = s_data[15]
-			last_fis <= s_data[7:0];
+			// BSY  = s_brdata[23] = r_command[7]
+			// DRDY = s_brdata[22] = r_command[6]
+			// DF   = s_brdata[21] = r_command[5]
+			// DRQ  = s_brdata[19] = r_command[4]
+			// ERR  = s_brdata[15]
+			last_fis <= s_brdata[7:0];
 		end
 
-		if (s_pkt_valid && s_sop && ( s_data[7:0] == FIS_DMA_SETUP))
-			r_int           <= r_int || s_data[14];
+		if (s_pkt_valid && s_sop && ( s_brdata[7:0] == FIS_DMA_SETUP))
+			r_int           <= r_int || s_brdata[14];
 
 		if (s_pkt_valid && s_active && s_posn == 1)
-			{ r_device, r_lba[23:0] } <= s_data;
+			{ r_device, r_lba[23:0] } <= s_brdata;
 		if (s_pkt_valid && s_active && s_posn == 2)
-			r_lba[47:24] <= s_data[23:0];
+			r_lba[47:24] <= s_brdata[23:0];
 		if (s_pkt_valid && s_active && s_posn == 3)
-			r_count <= s_data[15:0];
+			r_count <= s_brdata[15:0];
 
 		return_to_idle <= 1'b0;
 		r_dma_fail <= r_dma_fail || i_mm2s_err || i_s2mm_err;
@@ -527,7 +537,7 @@ module	satatrn_fsm #(
 				o_tran_src <= SRC_REGS;
 				o_tran_len <= 20; // register set
 
-				dma_length <= r_count;
+				dma_length <= r_count * 512;
 				r_busy <= 1'b1;
 			end end
 			// }}}
@@ -538,7 +548,7 @@ module	satatrn_fsm #(
 			// output	reg			o_tran_src,
 			// output	reg	[11:0]		o_tran_len,
 			//
-			if (o_tran_req && !i_tran_busy)
+			if (o_tran_req)
 			begin
 				o_tran_req <= 0;
 				case(cmd_type)
@@ -571,15 +581,15 @@ module	satatrn_fsm #(
 			// Receive data via PIO
 			last_rx_fis <= 1'b0;
 			if (s_pkt_valid && s_sop
-					&& s_data[7:0] == FIS_REG_TO_HOST)
+					&& s_brdata[7:0] == FIS_REG_TO_HOST)
 			begin
 				return_to_idle <= 1'b1;
 				fsm_state <= FSM_IDLE;
 			end else if (s_pkt_valid && s_sop
-					&& s_data[7:0] == FIS_PIO_SETUP)
+					&& s_brdata[7:0] == FIS_PIO_SETUP)
 			begin
 				fsm_state <= FSM_PIO_RXDATA;
-				last_rx_fis <= s_data[23]; // BSY
+				last_rx_fis <= s_brdata[23]; // BSY
 			end end
 			// }}}
 		FSM_PIO_RXDATA: begin
@@ -593,7 +603,7 @@ module	satatrn_fsm #(
 			end
 			o_s2mm_request     <= 1;
 			if (s_pkt_valid && s_sop
-					&& s_data[7:0] == FIS_REG_TO_HOST)
+					&& s_brdata[7:0] == FIS_REG_TO_HOST)
 			begin
 				fsm_state <= (last_rx_fis) ? FSM_IDLE : FSM_PIO_IN_SETUP;
 				if (last_rx_fis)
@@ -603,17 +613,18 @@ module	satatrn_fsm #(
 		FSM_PIO_OUT_SETUP: begin
 			// {{{
 			// Transmit data via PIO
-			if (s_pkt_valid && s_sop && s_data[7:0] == FIS_REG_TO_HOST)
+			if (s_pkt_valid && s_sop && s_brdata[7:0] == FIS_REG_TO_HOST)
 			begin
 				fsm_state <= FSM_IDLE;
 				return_to_idle <= 1'b1;
 			end else if (s_pkt_valid && s_sop
-					&& s_data[7:0] == FIS_PIO_SETUP)
+					&& s_brdata[7:0] == FIS_PIO_SETUP)
 			begin
 				fsm_state <= FSM_PIO_TXDATA;
 				o_tran_req <= 1;
 				o_tran_src <= SRC_MM2S;
 				o_tran_len <= (dma_length >= 2048) ? 2048 : dma_length[LGLENGTH:0]; // DATA_FIS
+				dma_length <= (dma_length >= 2048) ? (dma_length - 2048) : 0; // DATA_FIS
 			end end
 			// }}}
 		FSM_PIO_TXDATA: begin
@@ -631,7 +642,7 @@ module	satatrn_fsm #(
 			if (i_s2mm_beat)
 				o_s2mm_addr <= o_s2mm_addr + 4;
 			if (s_pkt_valid && s_sop
-					&& s_data[7:0] == FIS_REG_TO_HOST)
+					&& s_brdata[7:0] == FIS_REG_TO_HOST)
 				fsm_state <= FSM_DMA_IN_FINAL;
 			end
 		// }}}
@@ -649,13 +660,14 @@ module	satatrn_fsm #(
 			o_mm2s_request <= 0;
 			o_tran_src <= SRC_MM2S;
 			o_tran_len <= (dma_length > 2048) ? 2048 : dma_length[LGLENGTH:0];
+			dma_length <= (dma_length >= 2048) ? (dma_length - 2048) : 0; // DATA_FIS
 			if (s_pkt_valid && s_sop
-					&& s_data[7:0] == FIS_REG_TO_HOST)
+					&& s_brdata[7:0] == FIS_REG_TO_HOST)
 			begin
 				fsm_state <= FSM_IDLE;
 				return_to_idle <= 1'b1;
 			end else if (s_pkt_valid && s_sop
-					&& s_data[7:0] == FIS_DMA_ACTIVATE)
+					&& s_brdata[7:0] == FIS_DMA_ACTIVATE)
 			begin
 				fsm_state <= FSM_DMA_TXDATA;
 				o_mm2s_request <= 1;
@@ -675,8 +687,9 @@ module	satatrn_fsm #(
 			// }}}
 		FSM_WAIT_REG: begin
 			// {{{
+			o_tran_src <= SRC_MM2S;
 			if (s_pkt_valid && s_sop
-					&& s_data[7:0] == FIS_REG_TO_HOST)
+					&& s_brdata[7:0] == FIS_REG_TO_HOST)
 			begin
 				fsm_state <= FSM_IDLE;
 				return_to_idle <= 1'b1;
@@ -702,9 +715,15 @@ module	satatrn_fsm #(
 	reg	[1:0]	m_count;
 
 	always @(posedge i_clk)
-	if (i_reset || o_tran_req || o_tran_src == SRC_REGS)
-		{ m_valid, m_last, m_count } <= 0;
-	else if (!m_valid || m_ready)
+	if (i_reset)
+	begin
+		{ m_valid, m_count } <= 0;
+		m_last <= 1'b1;
+	end else if (o_tran_req && o_tran_src == SRC_REGS)
+	begin
+		{ m_valid, m_count } <= 0;
+		m_last <= 1'b0;	// Start a packet
+	end else if (!m_valid || m_ready)
 	begin
 		m_valid <= !m_last;
 		if (!m_last)
@@ -715,9 +734,12 @@ module	satatrn_fsm #(
 		end
 	end
 
+	// wire [1:0] case_cnt;
+	// assign	case_cnt = m_count + ((m_valid && m_ready) ? 1:0);
+
 	always @(posedge i_clk)
 	if (!m_valid || m_ready)
-	case(m_count + ((m_valid && m_ready) ? 1:0))
+	case(m_count)
 	0: m_data <= { FIS_REG_TO_DEV, !SRST,
 				3'h0, r_port, r_command, r_features[7:0] };
 	1: m_data <= { r_lba[7:0],  r_lba[15:8],  r_lba[23:16],r_device };
@@ -744,7 +766,7 @@ module	satatrn_fsm #(
 		o_wb_ack <= i_wb_stb && !o_wb_stall;
 
 	always @(posedge i_clk)
-	if (OPT_LOWPOWER && (i_reset || !i_wb_stb))
+	if (OPT_LOWPOWER && (i_reset || !i_wb_stb || i_wb_we))
 		o_wb_data <= 32'b0;
 	else begin
 		o_wb_data <= 32'h0;
@@ -764,6 +786,45 @@ module	satatrn_fsm #(
 	// }}}
 
 	assign	o_int = r_int || return_to_idle;
+	////////////////////////////////////////////////////////////////////////
+	//
+	// o_debug
+	// {{{
+	always @(posedge i_clk)
+	begin
+		o_debug <= 0;
+
+		o_debug[31] <= s_pkt_valid;
+
+		o_debug[30:27] <= fsm_state;
+		o_debug[26] <= i_mm2s_busy;
+		o_debug[25] <= i_mm2s_err;
+
+		o_debug[24] <= o_s2mm_request || o_mm2s_request;
+		o_debug[23] <= i_s2mm_busy;
+		o_debug[22] <= i_s2mm_err;
+		o_debug[21] <= i_s2mm_beat;
+		//
+		o_debug[20] <= i_wb_stb;
+		o_debug[19] <= i_wb_we;
+		o_debug[18] <= o_tran_req;
+		o_debug[17] <= i_tran_busy;
+		o_debug[16] <= i_tran_err;
+		o_debug[15] <= o_tran_src;
+		o_debug[14] <= o_int;
+		o_debug[13] <= i_link_up;
+		o_debug[12] <= m_valid;
+		o_debug[11] <= m_ready;
+		o_debug[10] <= m_last;
+		o_debug[ 9] <= s_pkt_valid;
+		o_debug[ 8] <= s_last;
+
+		if (s_pkt_valid)
+			o_debug[7:0] <= s_brdata[7:0];
+		else
+			o_debug[7:0] <= m_data[31:24];
+	end
+	// }}}
 
 	// Keep Verilator happy
 	// {{{
@@ -954,7 +1015,7 @@ module	satatrn_fsm #(
 	//
 
 	// ... what properties are appropriate here?
-	
+
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//

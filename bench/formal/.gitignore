@@ -14,6 +14,7 @@ satadma_rxgears*/
 satadma_txgears*/
 satadma_mm2s*/
 satadma_s2mm*/
+satatrn_wbarbiter*/
 sata_afifo*/
 sata_sfifo*/
 sata_skid*/

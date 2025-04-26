@@ -48,14 +48,15 @@ $dir = ".";
 	"satarx_crc",
 	"sata_framer",
 	"satarx_framer",
-	## satatx_framer
+	"satatx_framer",
 	"sata_scrambler",
 	"satarx_scrambler",
-	## satatx_scrambler
+	"satatx_scrambler",
 	"satalnk_align",
 	"satalnk_rmcont",
 	"satatb_bwrap",
 	"sata_pextend",
+	"satatrn_wbarbiter",
 	"satadma_mm2s",
 	"satadma_s2mm",
 	"satadma_rxgears",
@@ -69,7 +70,6 @@ $dir = ".";
 	## satatrn_fsm
 	## satatrn_rxregfis
 	## satatrn_txarb
-	## satatrn_wbarbiter
 	##
 	## Contain vendor macro black boxes:
 	## sata_phy
@@ -88,14 +88,15 @@ $dir = ".";
 	"satarx_crc"		=> "SATA RX CRC Checking",
 	"sata_framer"		=> "SATA Framer",
 	"satarx_framer"		=> "SATA RX Frame recovery",
-	## satatx_framer
+	"satatx_framer"		=> "SATA TX Frame generator",
 	"sata_scrambler"	=> "SATA Scrambler",
 	"satarx_scrambler"	=> "SATA Scrambler (Receive side only)",
-	## satatx_scrambler
+	"satatx_scrambler"	=> "SATA Scrambler (Transmit side)",
 	"satatb_bwrap"		=> "SATA 8B/10B encoder, 10B/8B decoder",
 	"satalnk_align"		=> "SATA TX P_ALIGN/P_CONT Insertion",
 	"satalnk_rmcont"	=> "SATA RX P_ALIGN/P_CONT Removal",
 	"sata_pextend"		=> "Pulse extender",
+	"satatrn_wbarbiter"	=> "Internal Wishbone arbiter",
 	##
 	"satadma_mm2s"		=> "SATA DMA from memory",
 	"satadma_s2mm"		=> "SATA DMA to memory",
@@ -105,13 +106,11 @@ $dir = ".";
 	"sata_sfifo"		=> "Synchronous FIFO",
 	"sata_skid"		=> "Skidbuffer"
 	## satalnk_fsm
-	## sata_pextend
 	## sata_phyinit
 	## sata_reset
 	## satatrn_fsm
 	## satatrn_rxregfis
 	## satatrn_txarb
-	## satatrn_wbarbiter
 	##
 	## Contain vendor macro black boxes:
 	## sata_phy

@@ -35,12 +35,14 @@
 ##
 ################################################################################
 ##
-.PHONY: all fifo dma gears
+.PHONY: all framer fifo dma gears scrambler
 ## }}}
-all: crc satatx_crc satarx_crc framer scrambler satatb_bwrap satarx_scrambler satalnk_align satalnk_rmcont satarx_framer fifo dma pextend report
+all: crc satatx_crc satarx_crc framer scrambler satatb_bwrap satarx_scrambler satalnk_align satalnk_rmcont fifo dma pextend wbarb report
+framer: satarx_framer satatx_framer
 fifo: afifo sfifo skid
 dma: s2mm mm2s gears
 gears: txgears rxgears
+scrambler: sata_scrambler satarx_scrambler satatx_scrambler
 
 RTL := ../../rtl
 
@@ -50,9 +52,11 @@ RXCRC    := satarx_crc
 FRAMR    := sata_framer
 SCRAMBLR := sata_scrambler
 RXSCRAM  := satarx_scrambler
+TXSCRAM  := satatx_scrambler
 TXALIGN  := satalnk_align
 RXALIGN  := satalnk_rmcont
 RXFRAME  := satarx_framer
+TXFRAME  := satatx_framer
 BWRAP    := satatb_bwrap
 PEXTEND  := sata_pextend
 AFIFO    := sata_afifo
@@ -62,8 +66,10 @@ TXGEARS  := satadma_txgears
 RXGEARS  := satadma_rxgears
 MM2S     := satadma_mm2s
 S2MM     := satadma_s2mm
+WBARB    := satatrn_wbarbiter
 
 AXIN     := faxin_slave.v faxin_master.v
+WB       := fwb_slave.v fwb_master.v
 NOJOBSERVER := MAKEFLAGS=
 SBYFLAGS := -j2 -f
 
@@ -101,9 +107,9 @@ $(RXCRC)_cvr/PASS: $(RXCRC).sby $(RTL)/$(RXCRC).v $(AXIN)
 ## {{{
 scrambler: sata_scrambler
 sata_scrambler: $(SCRAMBLR)_prf/PASS $(SCRAMBLR)_cvr/PASS
-$(SCRAMBLR)_prf/PASS: $(SCRAMBLR).sby $(SCRAMBLR).v $(RTL)/satarx_scrambler.v $(RTL)/satatx_scrambler.v $(AXIN)
+$(SCRAMBLR)_prf/PASS: $(SCRAMBLR).sby $(SCRAMBLR).v $(RTL)/satarx_scrambler.v $(RTL)/$(TXSCRAM).v $(AXIN)
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(SCRAMBLR).sby prf
-$(SCRAMBLR)_cvr/PASS: $(SCRAMBLR).sby $(SCRAMBLR).v $(RTL)/satarx_scrambler.v $(RTL)/satatx_scrambler.v $(AXIN)
+$(SCRAMBLR)_cvr/PASS: $(SCRAMBLR).sby $(SCRAMBLR).v $(RTL)/satarx_scrambler.v $(RTL)/$(TXSCRAM).v $(AXIN)
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(SCRAMBLR).sby cvr
 ## }}}
 
@@ -113,6 +119,16 @@ rxscrambler: $(RXSCRAM)
 $(RXSCRAM): $(RXSCRAM)_prf/PASS
 $(RXSCRAM)_prf/PASS: $(RXSCRAM).sby $(RTL)/$(RXSCRAM).v $(AXIN)
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXSCRAM).sby prf
+## }}}
+
+.PHONY: txscrambler
+## {{{
+txscrambler: $(TXSCRAM)
+$(TXSCRAM): $(TXSCRAM)_prf/PASS $(TXSCRAM)_cvr/PASS
+$(TXSCRAM)_prf/PASS: $(TXSCRAM).sby $(RTL)/$(TXSCRAM).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXSCRAM).sby prf
+$(TXSCRAM)_cvr/PASS: $(TXSCRAM).sby $(RTL)/$(TXSCRAM).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXSCRAM).sby cvr
 ## }}}
 
 .PHONY: framer sata_framer
@@ -131,6 +147,14 @@ rxframer: $(RXFRAME)
 $(RXFRAME): $(RXFRAME)_prf/PASS
 $(RXFRAME)_prf/PASS: $(RXFRAME).sby $(RTL)/$(RXFRAME).v
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXFRAME).sby prf
+## }}}
+
+.PHONY: txframer $(TXFRAME)
+## {{{
+txframer: $(TXFRAME)
+$(TXFRAME): $(TXFRAME)_prf/PASS
+$(TXFRAME)_prf/PASS: $(TXFRAME).sby $(RTL)/$(TXFRAME).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXFRAME).sby prf
 ## }}}
 
 .PHONY: txalign $(TXALIGN)
@@ -261,9 +285,9 @@ $(RXGEARS)_cvr/PASS: $(RXGEARS).sby $(RTL)/$(RXGEARS).v
 ## {{{
 mm2s: $(MM2S)
 $(MM2S): $(MM2S)_prf/PASS $(MM2S)_cvr/PASS
-$(MM2S)_prf/PASS: $(MM2S).sby $(RTL)/$(MM2S).v
+$(MM2S)_prf/PASS: $(MM2S).sby $(RTL)/$(MM2S).v $(WB)
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(MM2S).sby prf
-$(MM2S)_cvr/PASS: $(MM2S).sby $(RTL)/$(MM2S).v
+$(MM2S)_cvr/PASS: $(MM2S).sby $(RTL)/$(MM2S).v $(WB)
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(MM2S).sby cvr
 ## }}}
 
@@ -271,10 +295,20 @@ $(MM2S)_cvr/PASS: $(MM2S).sby $(RTL)/$(MM2S).v
 ## {{{
 s2mm: $(S2MM)
 $(S2MM): $(S2MM)_prf/PASS $(S2MM)_cvr/PASS
-$(S2MM)_prf/PASS: $(S2MM).sby $(RTL)/$(S2MM).v
+$(S2MM)_prf/PASS: $(S2MM).sby $(RTL)/$(S2MM).v $(WB)
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(S2MM).sby prf
-$(S2MM)_cvr/PASS: $(S2MM).sby $(RTL)/$(S2MM).v
+$(S2MM)_cvr/PASS: $(S2MM).sby $(RTL)/$(S2MM).v $(WB)
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(S2MM).sby cvr
+## }}}
+
+.PHONY: wbarb $(WBARB)
+## {{{
+s2mm: $(WBARB)
+$(WBARB): $(WBARB)_prf/PASS $(WBARB)_cvr/PASS
+$(WBARB)_prf/PASS: $(WBARB).sby $(RTL)/$(WBARB).v $(WB)
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(WBARB).sby prf
+$(WBARB)_cvr/PASS: $(WBARB).sby $(RTL)/$(WBARB).v $(WB)
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(WBARB).sby cvr
 ## }}}
 
 .PHONY: report

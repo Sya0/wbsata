@@ -76,6 +76,7 @@ module	satatx_scrambler #(
 
 	// fill
 	// {{{
+	initial	fill = INITIAL;
 	always @(posedge S_AXI_ACLK)
 	if (!S_AXI_ARESETN)
 		fill <= INITIAL;
@@ -146,16 +147,21 @@ module	satatx_scrambler #(
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
 	reg	f_past_valid;
+	reg	[11:0]	fs_word, fm_word;
 
 	initial	f_past_valid = 0;
 	always @(posedge S_AXI_ACLK)
 		f_past_valid <= 1;
 
-	always @(posedge S_AXI_ACLK)
-	if (S_AXI_ARESETN)
-		assert(fill != 0);
+	always @(*)
+	if (!f_past_valid)
+		assume(!S_AXI_ARESETN);
 
-	/*
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Stream properties
+	// {{{
+`ifdef	TXSCRAMBLER
 	always @(posedge S_AXI_ACLK)
 	if (!f_past_valid || !$past(S_AXI_ARESETN))
 		assume(!S_AXIS_TVALID);
@@ -165,7 +171,7 @@ module	satatx_scrambler #(
 		assume($stable(S_AXIS_TDATA));
 		assume($stable(S_AXIS_TLAST));
 	end
-	*/
+`endif
 
 	always @(posedge S_AXI_ACLK)
 	if (!f_past_valid || !$past(S_AXI_ARESETN))
@@ -176,6 +182,74 @@ module	satatx_scrambler #(
 		assert($stable(M_AXIS_TDATA));
 		assert($stable(M_AXIS_TLAST));
 	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Counting
+	// {{{
+
+	initial	fs_word = 0;
+	always @(posedge S_AXI_ACLK)
+	if (!S_AXI_ARESETN)
+		fs_word <= 0;
+	else if (S_AXIS_TVALID && S_AXIS_TREADY)
+	begin
+		fs_word <= fs_word + 1;
+		if (S_AXIS_TLAST)
+			fs_word <= 0;
+	end
+
+	always @(*)
+		assume(fs_word < 12'hffc || (fs_word == 12'hffc && S_AXIS_TVALID && S_AXIS_TLAST));
+
+	initial	fm_word = 0;
+	always @(posedge S_AXI_ACLK)
+	if (!S_AXI_ARESETN)
+		fm_word <= 0;
+	else if (M_AXIS_TVALID && M_AXIS_TREADY)
+	begin
+		fm_word <= fm_word + 1;
+		if (M_AXIS_TLAST)
+			fm_word <= 0;
+	end
+
+	always @(*)
+		assert(fm_word < 12'hffc || (fm_word == 12'hffc && M_AXIS_TVALID && M_AXIS_TLAST));
+
+	always @(*)
+	if (S_AXI_ARESETN)
+	begin
+		if (fs_word == 0)
+		begin
+			assert(!M_AXIS_TVALID || M_AXIS_TLAST);
+			if (fm_word != 0)
+				assert(M_AXIS_TVALID);
+		end else begin
+			assert(fm_word + (M_AXIS_TVALID ? 1:0) == fs_word);
+			assert(!M_AXIS_TVALID || !M_AXIS_TLAST);
+		end
+	end
+
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Scrambler properties
+	// {{{
+
+	always @(posedge S_AXI_ACLK)
+	if (fs_word == 0)
+		assert(fill == INITIAL);
+
+	always @(posedge S_AXI_ACLK)
+	if (S_AXI_ARESETN)
+		assert(fill != 0);
+
+	assign	f_fill = fill;
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Low power properties
+	// {{{
 
 	always @(posedge S_AXI_ACLK)
 	if (S_AXI_ARESETN && !M_AXIS_TVALID && OPT_LOWPOWER)
@@ -183,8 +257,21 @@ module	satatx_scrambler #(
 		assert(M_AXIS_TDATA == 0);
 		assert(M_AXIS_TLAST == 0);
 	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Cover properties
+	// {{{
 
-	assign	f_fill = fill;
+	always @(posedge S_AXI_ACLK)
+	if (S_AXI_ARESETN)
+	begin
+		cover(M_AXIS_TVALID && M_AXIS_TREADY && M_AXIS_TLAST && fm_word > 5);
+		cover(M_AXIS_TVALID && M_AXIS_TREADY && M_AXIS_TLAST && fm_word > 7);
+		cover(M_AXIS_TVALID && M_AXIS_TREADY && M_AXIS_TLAST && fm_word > 9);
+	end
+	// }}}
+
 // }}}
 `endif
 endmodule

@@ -301,8 +301,7 @@ module	satatrn_wbarbiter #(
 		.F_LGDEPTH(F_LGDEPTH),
 		.F_MAX_ACK_DELAY(F_MAX_ACK_DELAY),
 		.F_OPT_RMW_BUS_OPTION(1),
-		.F_OPT_DISCONTINUOUS(1),
-		.F_OPT_CLK2FFLOGIC(1'b0)
+		.F_OPT_DISCONTINUOUS(1)
 		// }}}
 	) f_wbm (
 		// {{{
@@ -320,8 +319,7 @@ module	satatrn_wbarbiter #(
 		.F_LGDEPTH(F_LGDEPTH),
 		.F_MAX_ACK_DELAY(0),
 		.F_OPT_RMW_BUS_OPTION(1),
-		.F_OPT_DISCONTINUOUS(1),
-		.F_OPT_CLK2FFLOGIC(1'b0)
+		.F_OPT_DISCONTINUOUS(1)
 		// }}}
 	) f_wba (
 		// {{{
@@ -339,8 +337,7 @@ module	satatrn_wbarbiter #(
 		.F_LGDEPTH(F_LGDEPTH),
 		.F_MAX_ACK_DELAY(0),
 		.F_OPT_RMW_BUS_OPTION(1),
-		.F_OPT_DISCONTINUOUS(1),
-		.F_OPT_CLK2FFLOGIC(1'b0)
+		.F_OPT_DISCONTINUOUS(1)
 		// }}}
 	) f_wbb (
 		// {{{

@@ -1,0 +1,23 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+prf: depth 5
+cvr: mode cover
+
+[engines]
+smtbmc
+
+[script]
+read -define TXSCRAMBLER
+read -formal satatx_scrambler.v
+--pycode-begin--
+cmd = "hierarchy -top satatx_scrambler"
+output(cmd)
+--pycode-end--
+prep -top satatx_scrambler
+
+[files]
+../../rtl/satatx_scrambler.v

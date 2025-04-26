@@ -20,7 +20,7 @@
 <TR><TD bgcolor=#caeec8>1 Cover points</TD><TD>sata_pextend</TD><TD>_cvr</TD></TR>
 <TR></TR>
 <TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_scrambler</TD><TD>_prf</TD><TD rowspan=2>SATA Scrambler</TD></TR>
-<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_scrambler</TD><TD>_cvr</TD></TR>
+<TR><TD bgcolor=#caeec8>3 Cover points</TD><TD>sata_scrambler</TD><TD>_cvr</TD></TR>
 <TR></TR>
 <TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf_w</TD><TD rowspan=9>Synchronous FIFO</TD></TR>
 <TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf_ar</TD></TR>
@@ -66,7 +66,15 @@
 <TR></TR>
 <TR><TD bgcolor=#caeec8>Pass</TD><TD>satatb_bwrap</TD><TD>_prf</TD><TD rowspan=1>SATA 8B/10B encoder, 10B/8B decoder</TD></TR>
 <TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satatrn_wbarbiter</TD><TD>_prf</TD><TD rowspan=2>Internal Wishbone arbiter</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satatrn_wbarbiter</TD><TD>_cvr</TD></TR>
+<TR></TR>
 <TR><TD bgcolor=#caeec8>Pass</TD><TD>satatx_crc</TD><TD>_prf</TD><TD rowspan=2>SATA TX CRC Insertion</TD></TR>
 <TR><TD bgcolor=#caeec8>3 Cover points</TD><TD>satatx_crc</TD><TD>_cvr</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satatx_framer</TD><TD>_prf</TD><TD rowspan=1>SATA TX Frame generator</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satatx_scrambler</TD><TD>_prf</TD><TD rowspan=2>SATA Scrambler (Transmit side)</TD></TR>
+<TR><TD bgcolor=#caeec8>3 Cover points</TD><TD>satatx_scrambler</TD><TD>_cvr</TD></TR>
 </TABLE>
 </BODY></HTML>

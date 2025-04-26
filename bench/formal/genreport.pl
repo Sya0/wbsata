@@ -58,6 +58,7 @@ $dir = ".";
 	"sata_pextend",
 	"satatrn_wbarbiter",
 	"satatrn_txarb",
+	"satatrn_rxregfis",
 	"satadma_mm2s",
 	"satadma_s2mm",
 	"satadma_rxgears",
@@ -69,8 +70,6 @@ $dir = ".";
 	## sata_phyinit,
 	## sata_reset,
 	## satatrn_fsm
-	## satatrn_rxregfis
-	## satatrn_txarb
 	##
 	## Contain vendor macro black boxes:
 	## sata_phy
@@ -99,6 +98,7 @@ $dir = ".";
 	"sata_pextend"		=> "Pulse extender",
 	"satatrn_wbarbiter"	=> "Internal Wishbone arbiter",
 	"satatrn_txarb"		=> "Data/Reg transmit arbiter",
+	"satatrn_rxregfis"	=> "Data/Reg receive arbiter",
 	##
 	"satadma_mm2s"		=> "SATA DMA from memory",
 	"satadma_s2mm"		=> "SATA DMA to memory",
@@ -111,7 +111,6 @@ $dir = ".";
 	## sata_phyinit
 	## sata_reset
 	## satatrn_fsm
-	## satatrn_rxregfis
 	##
 	## Contain vendor macro black boxes:
 	## sata_phy

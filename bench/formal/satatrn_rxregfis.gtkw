@@ -1,0 +1,56 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Sat Apr 26 19:14:18 2025
+[*]
+[dumpfile] "(null)"
+[timestart] 0
+[size] 1579 600
+[pos] -1 -1
+*-5.913176 15 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[sst_width] 343
+[signals_width] 166
+[sst_expanded] 1
+[sst_vpaned_height] 148
+@28
+satatrn_rxregfis.i_clk
+satatrn_rxregfis.i_reset
+satatrn_rxregfis.i_link_err
+@200
+-
+@29
+satatrn_rxregfis.i_valid
+@22
+satatrn_rxregfis.i_data[31:0]
+@28
+satatrn_rxregfis.i_last
+@200
+-
+@28
+satatrn_rxregfis.o_reg_valid
+@22
+satatrn_rxregfis.o_reg_data[31:0]
+@28
+satatrn_rxregfis.o_reg_last
+@200
+-
+@28
+satatrn_rxregfis.o_data_valid
+@22
+satatrn_rxregfis.o_data_data[31:0]
+@28
+satatrn_rxregfis.o_data_last
+@200
+-
+@28
+satatrn_rxregfis.mid_packet_phy
+satatrn_rxregfis.is_datapacket_phy
+satatrn_rxregfis.is_regpacket_phy
+@200
+-
+@22
+satatrn_rxregfis.fi_word[11:0]
+satatrn_rxregfis.fd_word[11:0]
+satatrn_rxregfis.first_word[31:0]
+satatrn_rxregfis.fr_word[11:0]
+[pattern_trace] 1
+[pattern_trace] 0

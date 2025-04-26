@@ -37,7 +37,7 @@
 ##
 .PHONY: all framer fifo dma gears scrambler
 ## }}}
-all: crc satatx_crc satarx_crc framer scrambler satatb_bwrap satarx_scrambler satalnk_align satalnk_rmcont fifo dma pextend wbarb txarb report
+all: crc satatx_crc satarx_crc framer scrambler satatb_bwrap satarx_scrambler satalnk_align satalnk_rmcont fifo dma pextend wbarb txarb rxarb report
 framer: satarx_framer satatx_framer
 fifo: afifo sfifo skid
 dma: s2mm mm2s gears
@@ -68,6 +68,7 @@ MM2S     := satadma_mm2s
 S2MM     := satadma_s2mm
 WBARB    := satatrn_wbarbiter
 TXARB    := satatrn_txarb
+RXARB    := satatrn_rxregfis
 
 AXIN     := faxin_slave.v faxin_master.v
 WB       := fwb_slave.v fwb_master.v
@@ -320,6 +321,16 @@ $(TXARB)_prf/PASS: $(TXARB).sby $(RTL)/$(TXARB).v
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXARB).sby prf
 $(TXARB)_cvr/PASS: $(TXARB).sby $(RTL)/$(TXARB).v
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXARB).sby cvr
+## }}}
+
+.PHONY: rxarb $(RXARB)
+## {{{
+rxarb: $(RXARB)
+$(RXARB): $(RXARB)_prf/PASS $(RXARB)_cvr/PASS
+$(RXARB)_prf/PASS: $(RXARB).sby $(RTL)/$(RXARB).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXARB).sby prf
+$(RXARB)_cvr/PASS: $(RXARB).sby $(RTL)/$(RXARB).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXARB).sby cvr
 ## }}}
 
 .PHONY: report

@@ -9,8 +9,11 @@ satarx_fram*/
 satatx_fram*/
 satarx_scrambler*/
 satatx_scrambler*/
+sata_pextend*/
 satadma_rxgears*/
 satadma_txgears*/
+satadma_mm2s*/
+satadma_s2mm*/
 sata_afifo*/
 sata_sfifo*/
 sata_skid*/

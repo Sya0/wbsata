@@ -1,0 +1,21 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+cvr: mode cover
+
+[engines]
+smtbmc
+
+[script]
+read -formal sata_pextend.v
+--pycode-begin--
+cmd = "hierarchy -top sata_pextend"
+output(cmd)
+--pycode-end--
+prep -top sata_pextend
+
+[files]
+../../rtl/sata_pextend.v

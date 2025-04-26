@@ -35,8 +35,12 @@
 ##
 ################################################################################
 ##
+.PHONY: all fifo dma gears
 ## }}}
-all: crc satatx_crc satarx_crc framer scrambler satatb_bwrap satarx_scrambler satalnk_align satalnk_rmcont satarx_framer sfifo afifo skid txgears rxgears report
+all: crc satatx_crc satarx_crc framer scrambler satatb_bwrap satarx_scrambler satalnk_align satalnk_rmcont satarx_framer fifo dma pextend report
+fifo: afifo sfifo skid
+dma: s2mm mm2s gears
+gears: txgears rxgears
 
 RTL := ../../rtl
 
@@ -50,11 +54,14 @@ TXALIGN  := satalnk_align
 RXALIGN  := satalnk_rmcont
 RXFRAME  := satarx_framer
 BWRAP    := satatb_bwrap
+PEXTEND  := sata_pextend
 AFIFO    := sata_afifo
 SFIFO    := sata_sfifo
 SKID     := sata_skid
 TXGEARS  := satadma_txgears
 RXGEARS  := satadma_rxgears
+MM2S     := satadma_mm2s
+S2MM     := satadma_s2mm
 
 AXIN     := faxin_slave.v faxin_master.v
 NOJOBSERVER := MAKEFLAGS=
@@ -140,6 +147,17 @@ $(RXALIGN): rxalign
 $(RXALIGN): $(RXALIGN)_prf/PASS
 $(RXALIGN)_prf/PASS: $(RXALIGN).sby $(RTL)/$(RXALIGN).v $(RTL)/sata_primitives.vh
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXALIGN).sby prf
+## }}}
+
+.PHONY: pextend pulse $(PEXTEND)
+## {{{
+pextend: $(PEXTEND)
+pulse: $(PEXTEND)
+$(PEXTEND): $(PEXTEND)_prf/PASS $(PEXTEND)_cvr/PASS
+$(PEXTEND)_prf/PASS: $(PEXTEND).sby $(RTL)/$(PEXTEND).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(PEXTEND).sby prf
+$(PEXTEND)_cvr/PASS: $(PEXTEND).sby $(RTL)/$(PEXTEND).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(PEXTEND).sby cvr
 ## }}}
 
 .PHONY: bwrap $(BWRAP)
@@ -237,6 +255,26 @@ $(RXGEARS)_prfw/PASS: $(RXGEARS).sby $(RTL)/$(RXGEARS).v
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXGEARS).sby prfw
 $(RXGEARS)_cvr/PASS: $(RXGEARS).sby $(RTL)/$(RXGEARS).v
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXGEARS).sby cvr
+## }}}
+
+.PHONY: mm2s $(MM2S)
+## {{{
+mm2s: $(MM2S)
+$(MM2S): $(MM2S)_prf/PASS $(MM2S)_cvr/PASS
+$(MM2S)_prf/PASS: $(MM2S).sby $(RTL)/$(MM2S).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(MM2S).sby prf
+$(MM2S)_cvr/PASS: $(MM2S).sby $(RTL)/$(MM2S).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(MM2S).sby cvr
+## }}}
+
+.PHONY: s2mm $(S2MM)
+## {{{
+s2mm: $(S2MM)
+$(S2MM): $(S2MM)_prf/PASS $(S2MM)_cvr/PASS
+$(S2MM)_prf/PASS: $(S2MM).sby $(RTL)/$(S2MM).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(S2MM).sby prf
+$(S2MM)_cvr/PASS: $(S2MM).sby $(RTL)/$(S2MM).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(S2MM).sby cvr
 ## }}}
 
 .PHONY: report

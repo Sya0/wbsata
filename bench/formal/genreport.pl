@@ -55,6 +55,7 @@ $dir = ".";
 	"satalnk_align",
 	"satalnk_rmcont",
 	"satatb_bwrap",
+	"sata_pextend",
 	"satadma_mm2s",
 	"satadma_s2mm",
 	"satadma_rxgears",
@@ -63,7 +64,6 @@ $dir = ".";
 	"sata_sfifo",
 	"sata_skid"
 	## satalnk_fsm,
-	## sata_pextend,
 	## sata_phyinit,
 	## sata_reset,
 	## satatrn_fsm
@@ -95,6 +95,7 @@ $dir = ".";
 	"satatb_bwrap"		=> "SATA 8B/10B encoder, 10B/8B decoder",
 	"satalnk_align"		=> "SATA TX P_ALIGN/P_CONT Insertion",
 	"satalnk_rmcont"	=> "SATA RX P_ALIGN/P_CONT Removal",
+	"sata_pextend"		=> "Pulse extender",
 	##
 	"satadma_mm2s"		=> "SATA DMA from memory",
 	"satadma_s2mm"		=> "SATA DMA to memory",

@@ -49,6 +49,8 @@ module	sata_pextend #(
 	localparam	LGCOUNTS = $clog2(COUNTS+1);
 	reg	[LGCOUNTS-1:0]	counter;
 
+	initial	counter = 0;
+	initial	o_sig = 0;
 	always @(posedge i_clk)
 	if (i_reset)
 	begin
@@ -68,5 +70,49 @@ module	sata_pextend #(
 		counter <= COUNTS;
 		o_sig <= 1'b1;
 	end
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//
+// Formal properties
+// {{{
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+`ifdef	FORMAL
+	reg	f_past_valid;
 
+	initial	f_past_valid = 0;
+	always @(posedge i_clk)
+		f_past_valid <= 1;
+
+	always @(*)
+	if (!f_past_valid)
+		assume(i_reset);
+
+	always @(*)
+		assert(counter <= COUNTS);
+	always @(*)
+		assert(o_sig == (counter != 0));
+
+	always @(posedge i_clk)
+	if (!f_past_valid || $past(i_reset))
+		assert(!o_sig);
+	else if ($past(i_sig))
+		assert(o_sig);
+
+	always @(posedge i_clk)
+	if (f_past_valid && !$past(i_reset) && !$past(i_reset,2))
+	begin
+		if ($past(o_sig) && $past(o_sig,2) && $past(!o_sig,3))
+			assert(o_sig);
+	end
+
+	always @(posedge i_clk)
+	if (f_past_valid && !i_reset && !$past(i_reset))
+	begin
+		cover($fell(o_sig));
+	end
+`endif
+// }}}
 endmodule

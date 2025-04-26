@@ -12,14 +12,14 @@ prf: depth 5
 smtbmc
 
 [script]
-read -formal zipdma_mm2s.v
+read -formal satadma_mm2s.v
 read -formal fwb_master.v
 --pycode-begin--
-cmd = "hierarchy -top zipdma_mm2s"
+cmd = "hierarchy -top satadma_mm2s"
 output(cmd)
 --pycode-end--
-prep -top zipdma_mm2s
+prep -top satadma_mm2s
 
 [files]
-../../rtl/ex/fwb_master.v
-../../rtl/zipdma/zipdma_mm2s.v
+fwb_master.v
+../../rtl/satadma_mm2s.v

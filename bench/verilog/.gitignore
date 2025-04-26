@@ -1,3 +1,8 @@
 prj/
 gtwizard_0_ex/
 prj_manuel/
+tmp_project/
+test/
+satalib.v
+testscript.v
+vivado_sim.tcl

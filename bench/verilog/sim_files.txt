@@ -49,4 +49,6 @@ wb2axip/memdev.v
 wb2axip/wbdown.v
 wb2axip/wbupsz.v
 wb2axip/wbxbar.v
+wb2axip/sfifo.v
+wb2axip/skidbuffer.v
 wb_bfm.v

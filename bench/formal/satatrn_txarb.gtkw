@@ -1,0 +1,80 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Sat Apr 26 18:43:13 2025
+[*]
+[dumpfile_mtime] "Sat Apr 26 18:42:08 2025"
+[dumpfile_size] 10255
+[timestart] 0
+[size] 1837 755
+[pos] -1 -1
+*-5.411296 135 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[sst_width] 343
+[signals_width] 166
+[sst_expanded] 1
+[sst_vpaned_height] 196
+@28
+satatrn_txarb.i_phy_clk
+satatrn_txarb.i_reset
+satatrn_txarb.i_txgate
+satatrn_txarb.txgate_xpipe
+satatrn_txarb.txgate_phy
+@200
+-
+@28
+[color] 3
+satatrn_txarb.i_data_valid
+@29
+[color] 2
+satatrn_txarb.o_data_ready
+@22
+[color] 3
+satatrn_txarb.i_data_data[31:0]
+@28
+[color] 3
+satatrn_txarb.i_data_last
+@200
+-
+@28
+[color] 3
+satatrn_txarb.i_reg_valid
+@29
+[color] 2
+satatrn_txarb.o_reg_ready
+@22
+[color] 3
+satatrn_txarb.i_reg_data[31:0]
+@28
+[color] 3
+satatrn_txarb.i_reg_last
+satatrn_txarb.regfifo_full
+satatrn_txarb.regfifo_ready
+satatrn_txarb.regfifo_empty
+@200
+-
+@29
+[color] 2
+satatrn_txarb.o_valid
+@28
+[color] 3
+satatrn_txarb.i_ready
+@23
+[color] 2
+satatrn_txarb.o_data[31:0]
+@29
+[color] 2
+satatrn_txarb.o_last
+@200
+-
+@28
+satatrn_txarb.mid_data_packet
+satatrn_txarb.mid_reg_packet
+@200
+-
+@22
+satatrn_txarb.fr_word[11:0]
+satatrn_txarb.fd_word[11:0]
+satatrn_txarb.fo_word[11:0]
+satatrn_txarb.fnvr_data[32:0]
+satatrn_txarb.fnvr_reg[32:0]
+[pattern_trace] 1
+[pattern_trace] 0

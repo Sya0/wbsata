@@ -1,0 +1,58 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Sat Apr 26 18:47:19 2025
+[*]
+[dumpfile] "(null)"
+[timestart] 0
+[size] 1790 600
+[pos] -1 -1
+*-4.484481 60 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[sst_width] 343
+[signals_width] 174
+[sst_expanded] 1
+[sst_vpaned_height] 148
+@28
+satarx_crc.S_AXI_ACLK
+satarx_crc.S_AXI_ARESETN
+satarx_crc.i_cfg_crc_en
+@200
+-
+@28
+[color] 3
+satarx_crc.S_AXIS_TVALID
+@22
+[color] 3
+satarx_crc.S_AXIS_TDATA[31:0]
+@28
+[color] 3
+satarx_crc.S_AXIS_TLAST
+@200
+-
+@28
+satarx_crc.r_valid
+@22
+satarx_crc.r_data[31:0]
+@28
+satarx_crc.r_last
+@200
+-
+@28
+[color] 2
+satarx_crc.M_AXIS_TVALID
+@22
+[color] 2
+satarx_crc.M_AXIS_TDATA[31:0]
+@28
+[color] 2
+satarx_crc.M_AXIS_TLAST
+@29
+[color] 1
+satarx_crc.M_AXIS_TABORT
+@20000
+-
+@22
+satarx_crc.fs_word[9:0]
+satarx_crc.fm_word[9:0]
+satarx_crc.fsum[9:0]
+[pattern_trace] 1
+[pattern_trace] 0

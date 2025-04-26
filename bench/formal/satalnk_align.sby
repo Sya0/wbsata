@@ -1,0 +1,21 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+cvr: mode cover
+
+[engines]
+smtbmc
+
+[script]
+read -formal satalnk_align.v
+--pycode-begin--
+cmd = "hierarchy -top satalnk_align"
+output(cmd)
+--pycode-end--
+prep -top satalnk_align
+
+[files]
+../../rtl/satalnk_align.v

@@ -77,7 +77,7 @@ module	satalnk_txpacket #(
 
 	// Optional skidbuffer
 	// {{{
-	skidbuffer #(
+	sata_skid #(
 		// {{{
 		.OPT_PASSTHROUGH(!OPT_SKIDBUFFER),
 		.DW(1+32)

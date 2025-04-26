@@ -1,10 +1,17 @@
 <HTML><HEAD><TITLE>Formal Verification Report</TITLE></HEAD>
 <BODY>
-<TABLE border>
+<H1 align=center>SD Controller Formal Verification Report</H1>
+<H2 align=center>20250426</H2>
+<TABLE border align=center>
 <TR><TH>Status</TH><TH>Component</TD><TH>Proof</TH><TH>Component description</TH></TR>
 <TR></TR>
-<TR><TD bgcolor=#caeec8>0 Cover points</TD><TD>sata_crc</TD><TD>_cvr</TD><TD rowspan=2>SATA CRC</TD></TR>
-<TR><TD bgcolor=#ffa4a4>Terminated</TD><TD>sata_crc</TD><TD>_prf</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_afifo</TD><TD>_prf</TD><TD rowspan=4>Asynchronous FIFO</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_afifo</TD><TD>_prfopt</TD></TR>
+<TR><TD bgcolor=#caeec8>11 Cover points</TD><TD>sata_afifo</TD><TD>_cvr</TD></TR>
+<TR><TD bgcolor=#caeec8>12 Cover points</TD><TD>sata_afifo</TD><TD>_cvropt</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>6 Cover points</TD><TD>sata_crc</TD><TD>_cvr</TD><TD rowspan=2>SATA CRC</TD></TR>
+<TR><TD bgcolor=#e5e5e5>Unknown</TD><TD>sata_crc</TD><TD>_prf</TD></TR>
 <TR></TR>
 <TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_framer</TD><TD>_prf</TD><TD rowspan=2>SATA Framer</TD></TR>
 <TR><TD bgcolor=#caeec8>2 Cover points</TD><TD>sata_framer</TD><TD>_cvr</TD></TR>
@@ -12,6 +19,45 @@
 <TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_scrambler</TD><TD>_prf</TD><TD rowspan=2>SATA Scrambler</TD></TR>
 <TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_scrambler</TD><TD>_cvr</TD></TR>
 <TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf_w</TD><TD rowspan=9>Synchronous FIFO</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf_ar</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf_a</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf_awr</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf_wr</TD></TR>
+<TR><TD bgcolor=#caeec8>5 Cover points</TD><TD>sata_sfifo</TD><TD>_cvr</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf_aw</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_sfifo</TD><TD>_prf_r</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>1 Cover points</TD><TD>sata_skid</TD><TD>_cvr</TD><TD rowspan=5>Skidbuffer</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_skid</TD><TD>_lpc</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_skid</TD><TD>_prfo</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_skid</TD><TD>_prfc</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>sata_skid</TD><TD>_lpo</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satadma_rxgears</TD><TD>_cvr</TD><TD rowspan=3>SATA DMA RX Gearbox</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satadma_rxgears</TD><TD>_prfw</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satadma_rxgears</TD><TD>_prf</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satadma_txgears</TD><TD>_prfw</TD><TD rowspan=4>SATA DMA TX Gearbox</TD></TR>
+<TR><TD bgcolor=#caeec8>11 Cover points</TD><TD>satadma_txgears</TD><TD>_cvrw</TD></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satadma_txgears</TD><TD>_prf</TD></TR>
+<TR><TD bgcolor=#caeec8>11 Cover points</TD><TD>satadma_txgears</TD><TD>_cvr</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satalnk_align</TD><TD>_prf</TD><TD rowspan=1>SATA TX P_ALIGN/P_CONT Insertion</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satalnk_rmcont</TD><TD>_prf</TD><TD rowspan=1>SATA RX P_ALIGN/P_CONT Removal</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satarx_crc</TD><TD>_prf</TD><TD rowspan=2>SATA RX CRC Checking</TD></TR>
+<TR><TD bgcolor=#caeec8>2 Cover points</TD><TD>satarx_crc</TD><TD>_cvr</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satarx_framer</TD><TD>_prf</TD><TD rowspan=1>SATA RX Frame recovery</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satarx_scrambler</TD><TD>_prf</TD><TD rowspan=1>SATA Scrambler (Receive side only)</TD></TR>
+<TR></TR>
 <TR><TD bgcolor=#caeec8>Pass</TD><TD>satatb_bwrap</TD><TD>_prf</TD><TD rowspan=1>SATA 8B/10B encoder, 10B/8B decoder</TD></TR>
+<TR></TR>
+<TR><TD bgcolor=#caeec8>Pass</TD><TD>satatx_crc</TD><TD>_prf</TD><TD rowspan=2>SATA TX CRC Insertion</TD></TR>
+<TR><TD bgcolor=#caeec8>3 Cover points</TD><TD>satatx_crc</TD><TD>_cvr</TD></TR>
 </TABLE>
 </BODY></HTML>

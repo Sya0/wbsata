@@ -4,7 +4,9 @@
 // {{{
 // Project:	A Wishbone SATA controller
 //
-// Purpose:	
+// Purpose:	Removes align and continue primitives.  This includes all of
+//		the "data" (i.e. not-primitives) following any continue
+//	primitives, and just removing such data from the outgoing stream.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
@@ -38,7 +40,9 @@
 `default_nettype none
 `timescale	1ns/1ps
 // }}}
-module	satalnk_rmcont (
+module	satalnk_rmcont #(
+		parameter [0:0]	OPT_LOWPOWER = 1'b0
+	) (
 		// {{{
 		input	wire		i_clk, i_reset,
 		//
@@ -59,16 +63,27 @@ module	satalnk_rmcont (
 	reg	[31:0]	r_last;
 	// }}}
 
+	initial	o_valid  = 0;
+	initial	r_active = 0;
 	always @(posedge i_clk)
 	begin
 		o_valid     <= i_valid;
 		o_primitive <= r_active || i_primitive;
-		o_data      <= i_data;
+		o_data      <= (i_valid || !OPT_LOWPOWER) ? i_data : 32'h0;
 
 		if (i_valid && { i_primitive, i_data } == P_ALIGN)
+		begin
 			o_valid <= 0;
+			if (OPT_LOWPOWER)
+				{ o_primitive, o_data } <= 33'h0;
+		end
+
 		if (i_valid && !i_primitive && r_active)
+		begin
 			o_valid <= 0;
+			if (OPT_LOWPOWER)
+				{ o_primitive, o_data } <= 33'h0;
+		end
 
 		if (i_valid && i_primitive)
 		begin
@@ -77,12 +92,19 @@ module	satalnk_rmcont (
 				r_active <= 1'b1;
 				o_data 	 <= r_last;
 				o_valid	 <= 1'b0;
+				if (OPT_LOWPOWER)
+				begin
+					o_primitive <= 1'b0;
+					o_data <= 32'h0;
+				end
 			end else begin
 				r_last   <= i_data;
 				// r_align  <= (i_data == P_ALIGN[31:0]);
 				r_active <= 1'b0;
 				// Always pass primitives forward
 				o_data 	 <= i_data;
+				if (OPT_LOWPOWER && i_data == P_ALIGN[31:0])
+					o_data <= 0;
 			end
 		end else if (i_valid && r_active)
 		begin
@@ -90,12 +112,86 @@ module	satalnk_rmcont (
 			// last primitive -- save that we'll drop o_valid,
 			// to make it easier to cross clock domains
 			o_data <= r_last;
+			if (OPT_LOWPOWER)
+				o_data <= 32'h0;
 		end
+
+		if (OPT_LOWPOWER)
+			r_last <= 32'h0;
+
+		if (OPT_LOWPOWER && (!i_valid || (r_active && !i_primitive)))
+			{ o_primitive, o_data } <= 33'h0;
 
 		if (i_reset)
 		begin
 			r_active <= 0;
 			o_valid  <= 0;
+			if (OPT_LOWPOWER)
+			begin
+				{ o_primitive, o_data } <= 33'h0;
+			end
 		end
 	end
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//
+// Formal properties
+// {{{
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+`ifdef	FORMAL
+	reg	f_past_valid;
+	(* anyconst *)	reg	[32:0]	fnvr_data;
+
+	initial	f_past_valid = 0;
+	always @(posedge i_clk)
+		f_past_valid <= 1;
+
+	always @(*)
+	if (!f_past_valid)
+		assume(i_reset);
+
+	always @(posedge i_clk)
+	if (!i_reset && r_active)
+		assert(!o_valid);
+
+	always @(posedge i_clk)
+	if (i_valid)
+		assume({ i_primitive, i_data } != fnvr_data);
+
+	always @(posedge i_clk)
+	if (!i_reset && o_valid)
+	begin
+		assume(fnvr_data[31:0] != 32'h0);
+		assert({ o_primitive, o_data } != fnvr_data);
+	end
+
+	always @(posedge i_clk)
+	if (!i_reset && o_valid)
+	begin
+		assert({ o_primitive, o_data } != P_ALIGN);
+		assert({ o_primitive, o_data } != P_CONT);
+	end
+
+	always @(posedge i_clk)
+	if (!i_reset && !$past(i_reset) && $past(i_valid))
+	begin
+		if ($past(i_primitive))
+		begin
+			assert(r_active == $past(i_data[31:0] == P_CONT[31:0]));
+		end else begin
+			assert($stable(r_active));
+		end
+	end
+
+	always @(posedge i_clk)
+	if (f_past_valid && OPT_LOWPOWER && !o_valid)
+	begin
+		assert(33'h0 == { o_primitive, o_data });
+	end
+
+`endif
+// }}}
 endmodule

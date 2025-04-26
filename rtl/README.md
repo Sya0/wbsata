@@ -2,8 +2,8 @@
 
 - [`sata_controller`](sata_controller.v): The "top" level of the controller
   - [`sata_transport`](sata_transport.v)
-    - [sfifo](sfifo.v): Basic synchronous FIFO
-    - [afifo](afifo.v): Basic asynchronous FIFO
+    - [`sata_sfifo`](sata_sfifo.v): Basic synchronous FIFO
+    - [`sata_afifo`](sata_afifo.v): Basic asynchronous FIFO
     - [`satatrn_wbarbiter`](satatrn_wbarbiter.v): Basic Wishbone arbiter
     - [`satatrn_fsm`](satatrn_fsm.v): 
     - [`satatrn_rxregfis`](satatrn_rxregfis.v): Selects between control FIS's, to go to the FSM, and DATA FIS's to be sent to the DMA
@@ -13,15 +13,15 @@
     - [`satadma_txgears`](satadma_txgears.v): Unpacks bus sized words into 32b words
     - [`satadma_s2mm`](satadma_s2mm.v): Device to memory DMA
   - [`sata_link`](sata_link.v)
-    - [`satalnk_rmcont`](satalnk_rmcont.v)
-    - [afifo](afifo.v): Basic asynchronous FIFO
-    - [`satalnk_txpacket`](satalnk_txpacket.v)
-      - `skidbuffer`
-      - [`satatx_crc`](satatx_crc.v)
-      - [`satatx_scrambler`](satatx_scrambler.v)
-      - [`satatx_framer`](satatx_framer.v)
+    - [`satalnk_rmcont`](satalnk_rmcont.v): Remove `P_ALIGN` and `P_CONT` primitives
+    - [`sata_afifo`](afifo.v): Basic asynchronous FIFO
+    - [`satalnk_txpacket`](satalnk_txpacket.v): Transmit packet generation
+      - [`sata_skid`](sata_skid.v): Skidbuffer
+      - [`satatx_crc`](satatx_crc.v): Add a CRC to a packet
+      - [`satatx_framer`](satatx_framer.v): Generate a packet
+      - [`satatx_scrambler`](satatx_scrambler.v): Scramble the packet
     - [`satalnk_fsm`](satalnk_fsm.v)
-    - [`satalnk_align`](satalnk_align.v)
+    - [`satalnk_align`](satalnk_align.v): Add `P_ALIGN` and `P_CONT` primitives
     - [`satalnk_rxpacket`](satalnk_rxpacket.v)
       - [`satarx_framer`](satarx_framer.v)
       - [`satarx_scrambler`](satarx_scrambler.v)

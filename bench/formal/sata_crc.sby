@@ -6,13 +6,15 @@ cvr
 depth 5		# Depth 6 takes too long (16hrs+)
 prf: mode prove
 cvr: mode cover
-cvr: depth 12
+cvr: depth 15
 
 [engines]
 smtbmc
 
 [script]
 read -formal sata_crc_wrapper.v
+read -formal faxin_slave.v
+read -formal faxin_master.v
 read -formal satatx_crc.v
 read -formal satarx_crc.v
 --pycode-begin--
@@ -22,6 +24,8 @@ output(cmd)
 prep -top sata_crc_wrapper
 
 [files]
+faxin_slave.v
+faxin_master.v
 sata_crc_wrapper.v
 ../../rtl/satarx_crc.v
 ../../rtl/satatx_crc.v

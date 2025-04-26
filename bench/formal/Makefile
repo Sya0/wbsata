@@ -11,7 +11,7 @@
 ##
 ################################################################################
 ## }}}
-## Copyright (C) 2022-2024, Gisselquist Technology, LLC
+## Copyright (C) 2022-2025, Gisselquist Technology, LLC
 ## {{{
 ## This file is part of the WBSATA project.
 ##
@@ -36,51 +36,207 @@
 ################################################################################
 ##
 ## }}}
-all: crc framer scrambler satatb_bwrap
+all: crc satatx_crc satarx_crc framer scrambler satatb_bwrap satarx_scrambler satalnk_align satalnk_rmcont satarx_framer sfifo afifo skid txgears rxgears report
 
 RTL := ../../rtl
 
-CRC := sata_crc
-FRAMR := sata_framer
+CRC      := sata_crc
+TXCRC    := satatx_crc
+RXCRC    := satarx_crc
+FRAMR    := sata_framer
 SCRAMBLR := sata_scrambler
-BWRAP := satatb_bwrap
+RXSCRAM  := satarx_scrambler
+TXALIGN  := satalnk_align
+RXALIGN  := satalnk_rmcont
+RXFRAME  := satarx_framer
+BWRAP    := satatb_bwrap
+AFIFO    := sata_afifo
+SFIFO    := sata_sfifo
+SKID     := sata_skid
+TXGEARS  := satadma_txgears
+RXGEARS  := satadma_rxgears
+
+AXIN     := faxin_slave.v faxin_master.v
+NOJOBSERVER := MAKEFLAGS=
+SBYFLAGS := -j2 -f
 
 .PHONY: crc sata_crc
 ## {{{
 crc: sata_crc
 sata_crc: $(CRC)_prf/PASS $(CRC)_cvr/PASS
-$(CRC)_prf/PASS: $(CRC).sby $(CRC)_wrapper.v $(RTL)/satarx_crc.v $(RTL)/satatx_crc.v
-	sby -f $(CRC).sby prf
-$(CRC)_cvr/PASS: $(CRC).sby $(CRC)_wrapper.v $(RTL)/satarx_crc.v $(RTL)/satatx_crc.v
-	sby -f $(CRC).sby cvr
+$(CRC)_prf/PASS: $(CRC).sby $(CRC)_wrapper.v $(RTL)/$(RXCRC).v $(RTL)/$(TXCRC).v $(AXIN)
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(CRC).sby prf
+$(CRC)_cvr/PASS: $(CRC).sby $(CRC)_wrapper.v $(RTL)/$(RXCRC).v $(RTL)/$(TXCRC).v $(AXIN)
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(CRC).sby cvr
+## }}}
+
+.PHONY: txcrc satatx_crc
+## {{{
+txcrc: satatx_crc
+$(TXCRC): $(TXCRC)_prf/PASS $(TXCRC)_cvr/PASS
+$(TXCRC)_prf/PASS: $(TXCRC).sby $(RTL)/$(TXCRC).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXCRC).sby prf
+$(TXCRC)_cvr/PASS: $(TXCRC).sby $(RTL)/$(TXCRC).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXCRC).sby cvr
+## }}}
+
+.PHONY: rxcrc satarx_crc
+## {{{
+rxcrc: satarx_crc
+$(RXCRC): $(RXCRC)_prf/PASS $(RXCRC)_cvr/PASS
+$(RXCRC)_prf/PASS: $(RXCRC).sby $(RTL)/$(RXCRC).v $(AXIN)
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXCRC).sby prf
+$(RXCRC)_cvr/PASS: $(RXCRC).sby $(RTL)/$(RXCRC).v $(AXIN)
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXCRC).sby cvr
 ## }}}
 
 .PHONY: scrambler sata_scrambler
 ## {{{
 scrambler: sata_scrambler
 sata_scrambler: $(SCRAMBLR)_prf/PASS $(SCRAMBLR)_cvr/PASS
-$(SCRAMBLR)_prf/PASS: $(SCRAMBLR).sby $(SCRAMBLR).v $(RTL)/satarx_scrambler.v $(RTL)/satatx_scrambler.v
-	sby -f $(SCRAMBLR).sby prf
-$(SCRAMBLR)_cvr/PASS: $(SCRAMBLR).sby $(SCRAMBLR).v $(RTL)/satarx_scrambler.v $(RTL)/satatx_scrambler.v
-	sby -f $(SCRAMBLR).sby cvr
+$(SCRAMBLR)_prf/PASS: $(SCRAMBLR).sby $(SCRAMBLR).v $(RTL)/satarx_scrambler.v $(RTL)/satatx_scrambler.v $(AXIN)
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SCRAMBLR).sby prf
+$(SCRAMBLR)_cvr/PASS: $(SCRAMBLR).sby $(SCRAMBLR).v $(RTL)/satarx_scrambler.v $(RTL)/satatx_scrambler.v $(AXIN)
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SCRAMBLR).sby cvr
+## }}}
+
+.PHONY: rxscrambler
+## {{{
+rxscrambler: $(RXSCRAM)
+$(RXSCRAM): $(RXSCRAM)_prf/PASS
+$(RXSCRAM)_prf/PASS: $(RXSCRAM).sby $(RTL)/$(RXSCRAM).v $(AXIN)
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXSCRAM).sby prf
 ## }}}
 
 .PHONY: framer sata_framer
 ## {{{
 framer: sata_framer
 sata_framer: $(FRAMR)_prf/PASS $(FRAMR)_cvr/PASS
-$(FRAMR)_prf/PASS: $(FRAMR).sby $(FRAMR).v $(RTL)/satarx_framer.v $(RTL)/satatx_framer.v
-	sby -f $(FRAMR).sby prf
-$(FRAMR)_cvr/PASS: $(FRAMR).sby $(FRAMR).v $(RTL)/satarx_framer.v $(RTL)/satatx_framer.v
-	sby -f $(FRAMR).sby cvr
+$(FRAMR)_prf/PASS: $(FRAMR).sby $(FRAMR).v $(RTL)/$(RXFRAME).v $(RTL)/satatx_framer.v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(FRAMR).sby prf
+$(FRAMR)_cvr/PASS: $(FRAMR).sby $(FRAMR).v $(RTL)/$(RXFRAME).v $(RTL)/satatx_framer.v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(FRAMR).sby cvr
 ## }}}
 
-.PHONY: bwrap satatb_bwrap
+.PHONY: rxframer $(RXFRAME)
 ## {{{
-bwrap: satatb_bwrap
-satatb_bwrap: $(BWRAP)_prf/PASS
-$(BWRAP)_prf/PASS: $(BWRAP).sby $(BWRAP).v ../verilog/satatb_8b10b.v ../verilog/satatb_10b8b.v
-	sby -f $(BWRAP).sby prf
+rxframer: $(RXFRAME)
+$(RXFRAME): $(RXFRAME)_prf/PASS
+$(RXFRAME)_prf/PASS: $(RXFRAME).sby $(RTL)/$(RXFRAME).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXFRAME).sby prf
+## }}}
+
+.PHONY: txalign $(TXALIGN)
+## {{{
+$(TXALIGN): txalign
+$(TXALIGN): $(TXALIGN)_prf/PASS
+$(TXALIGN)_prf/PASS: $(TXALIGN).sby $(RTL)/$(TXALIGN).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXALIGN).sby prf
+## }}}
+
+.PHONY: rxalign $(RXALIGN)
+## {{{
+$(RXALIGN): rxalign
+$(RXALIGN): $(RXALIGN)_prf/PASS
+$(RXALIGN)_prf/PASS: $(RXALIGN).sby $(RTL)/$(RXALIGN).v $(RTL)/sata_primitives.vh
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXALIGN).sby prf
+## }}}
+
+.PHONY: bwrap $(BWRAP)
+## {{{
+bwrap: $(BWRAP)
+$(BWRAP): $(BWRAP)_prf/PASS
+$(BWRAP)_prf/PASS: ## $(BWRAP).sby $(BWRAP).v ../verilog/satatb_8b10b.v ../verilog/satatb_10b8b.v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(BWRAP).sby prf
+## }}}
+
+.PHONY: afifo $(AFIFO)
+## {{{
+afifo: $(AFIFO)
+$(AFIFO): $(AFIFO)_prf/PASS $(AFIFO)_prfopt/PASS
+$(AFIFO): $(AFIFO)_cvr/PASS $(AFIFO)_cvropt/PASS
+$(AFIFO)_prf/PASS: $(AFIFO).sby $(RTL)/$(AFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(AFIFO).sby prf
+$(AFIFO)_prfopt/PASS: $(AFIFO).sby $(RTL)/$(AFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(AFIFO).sby prfopt
+$(AFIFO)_cvr/PASS: $(AFIFO).sby $(RTL)/$(AFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(AFIFO).sby cvr
+$(AFIFO)_cvropt/PASS: $(AFIFO).sby $(RTL)/$(AFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(AFIFO).sby cvropt
+## }}}
+
+.PHONY: sfifo $(AFIFO)
+## {{{
+sfifo: $(SFIFO)
+$(SFIFO): $(SFIFO)_prf/PASS    $(SFIFO)_prf_r/PASS
+$(SFIFO): $(SFIFO)_prf_w/PASS  $(SFIFO)_prf_wr/PASS
+$(SFIFO): $(SFIFO)_prf_a/PASS  $(SFIFO)_prf_ar/PASS
+$(SFIFO): $(SFIFO)_prf_aw/PASS $(SFIFO)_prf_awr/PASS
+$(SFIFO): $(SFIFO)_cvr/PASS
+$(SFIFO)_prf/PASS: $(SFIFO).sby $(RTL)/$(SFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SFIFO).sby prf
+$(SFIFO)_prf_r/PASS: $(SFIFO).sby $(RTL)/$(SFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SFIFO).sby prf_r
+$(SFIFO)_prf_w/PASS: $(SFIFO).sby $(RTL)/$(SFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SFIFO).sby prf_w
+$(SFIFO)_prf_wr/PASS: $(SFIFO).sby $(RTL)/$(SFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SFIFO).sby prf_wr
+$(SFIFO)_prf_a/PASS: $(SFIFO).sby $(RTL)/$(SFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SFIFO).sby prf_a
+$(SFIFO)_prf_ar/PASS: $(SFIFO).sby $(RTL)/$(SFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SFIFO).sby prf_ar
+$(SFIFO)_prf_aw/PASS: $(SFIFO).sby $(RTL)/$(SFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SFIFO).sby prf_aw
+$(SFIFO)_prf_awr/PASS: $(SFIFO).sby $(RTL)/$(SFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SFIFO).sby prf_awr
+$(SFIFO)_cvr/PASS: $(SFIFO).sby $(RTL)/$(SFIFO).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SFIFO).sby cvr
+## }}}
+
+.PHONY: skid  $(SKID)
+## {{{
+skid: $(SKID)
+$(SKID): $(SKID)_prfc/PASS $(SKID)_prfo/PASS
+$(SKID): $(SKID)_lpc/PASS  $(SKID)_lpo/PASS
+$(SKID): $(SKID)_cvr/PASS
+$(SKID)_prfc/PASS: $(SKID).sby $(RTL)/$(SKID).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SKID).sby prfc
+$(SKID)_prfo/PASS: $(SKID).sby $(RTL)/$(SKID).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SKID).sby prfo
+$(SKID)_lpc/PASS: $(SKID).sby $(RTL)/$(SKID).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SKID).sby lpc
+$(SKID)_lpo/PASS: $(SKID).sby $(RTL)/$(SKID).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SKID).sby lpo
+$(SKID)_cvr/PASS: $(SKID).sby $(RTL)/$(SKID).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(SKID).sby cvr
+## }}}
+
+.PHONY: txgears $(TXGEARS)
+## {{{
+txgears: $(TXGEARS)
+$(TXGEARS): $(TXGEARS)_prf/PASS $(TXGEARS)_prfw/PASS
+$(TXGEARS): $(TXGEARS)_cvr/PASS $(TXGEARS)_cvrw/PASS
+$(TXGEARS)_prf/PASS: $(TXGEARS).sby $(RTL)/$(TXGEARS).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXGEARS).sby prf
+$(TXGEARS)_prfw/PASS: $(TXGEARS).sby $(RTL)/$(TXGEARS).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXGEARS).sby prfw
+$(TXGEARS)_cvr/PASS: $(TXGEARS).sby $(RTL)/$(TXGEARS).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXGEARS).sby cvr
+$(TXGEARS)_cvrw/PASS: $(TXGEARS).sby $(RTL)/$(TXGEARS).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(TXGEARS).sby cvrw
+## }}}
+
+.PHONY: rxgears $(RXGEARS)
+## {{{
+rxgears: $(RXGEARS)
+$(RXGEARS): $(RXGEARS)_prf/PASS $(RXGEARS)_prfw/PASS
+$(RXGEARS): $(RXGEARS)_cvr/PASS
+$(RXGEARS)_prf/PASS: $(RXGEARS).sby $(RTL)/$(RXGEARS).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXGEARS).sby prf
+$(RXGEARS)_prfw/PASS: $(RXGEARS).sby $(RTL)/$(RXGEARS).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXGEARS).sby prfw
+$(RXGEARS)_cvr/PASS: $(RXGEARS).sby $(RTL)/$(RXGEARS).v
+	$(NOJOBSERVER) sby $(SBYFLAGS) $(RXGEARS).sby cvr
 ## }}}
 
 .PHONY: report
@@ -93,7 +249,12 @@ report:
 ## {{{
 clean:
 	rm  -f report.html
-	rm -rf sata_crc_*/
-	rm -rf sata_scrambler_*/
-	rm -rf sata_framer_*/
+	rm -rf sata_crc*/
+	rm -rf sata_scrambler*/
+	rm -rf sata_framer*/
+	rm -rf satarx_scrambler*/
+	rm -rf satalnk_align*/
+	rm -rf satalnk_rmcont*/
+	rm -rf satarx_framer*/
+	rm -rf satatb_bwrap*/
 ## }}}

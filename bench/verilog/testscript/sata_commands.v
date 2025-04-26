@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename:	sata_commands.txt
+// Filename:	bench/verilog/testscript/sata_commands.v
 // {{{
 // Project:	A Wishbone SATA controller
 //

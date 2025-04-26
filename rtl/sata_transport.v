@@ -348,7 +348,7 @@ module	sata_transport #(
 		// }}}
 	);
 
-	afifo #(
+	sata_afifo #(
 		// Just need enough of a FIFO to cross clock domains, no more
 		.WIDTH(1+$clog2(DW/8)+DW), .LGFIFO(LGAFIFO)
 	) u_rx_afifo (
@@ -365,7 +365,7 @@ module	sata_transport #(
 		// }}}
 	);
 
-	sfifo #(
+	sata_sfifo #(
 		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO-$clog2(DW/8))
 	) rx_fifo (
 		// {{{
@@ -472,7 +472,7 @@ module	sata_transport #(
 		// }}}
 	);
 
-	sfifo #(
+	sata_sfifo #(
 		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO-$clog2(DW/8))
 	) u_txfifo (
 		// {{{
@@ -491,7 +491,7 @@ module	sata_transport #(
 	assign	mm2sgear_ready = !txfifo_full;
 
 	// AFIFO (?)
-	afifo #(
+	sata_afifo #(
 		// Just need enough of a FIFO to cross clock domains, no more
 		.WIDTH(1+$clog2(DW/8)+DW), .LGFIFO(LGAFIFO)
 	) u_tx_afifo (

@@ -1,6 +1,6 @@
 satatb_top.v
 ## Design source files
-../../rtl/afifo.v
+../../rtl/sata_afifo.v
 ../../rtl/sata_controller.v
 ../../rtl/satadma_mm2s.v
 ../../rtl/satadma_rxgears.v
@@ -27,8 +27,8 @@ satatb_top.v
 ../../rtl/satatx_crc.v
 ../../rtl/satatx_framer.v
 ../../rtl/satatx_scrambler.v
-../../rtl/sfifo.v
-../../rtl/skidbuffer.v
+../../rtl/sata_sfifo.v
+../../rtl/sata_skid.v
 ## SATA Model files
 sata_model.v
 mdl_s10b8b.v

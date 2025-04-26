@@ -145,7 +145,7 @@ module	sata_link #(
 
 	// 2. Cross clock domains
 	// {{{
-	afifo #(
+	sata_afifo #(
 		.LGFIFO(3), .WIDTH(33)
 	) rx_afifo (
 		.i_wclk(i_rx_clk), .i_wr_reset_n(rx_reset_n),

@@ -121,7 +121,7 @@ module	satatrn_rxregfis #(
 
 	// reg_afifo
 	// {{{
-	afifo #(
+	sata_afifo #(
 		.WIDTH(33), .LGFIFO(LGFIFO)
 	) u_reg_afifo (
 		.i_wclk(i_phy_clk), .i_wr_reset_n(i_phy_reset_n),

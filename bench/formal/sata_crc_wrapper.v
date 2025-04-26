@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2021-2024, Gisselquist Technology, LLC
+// Copyright (C) 2021-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -65,6 +65,8 @@ module	sata_crc_wrapper #(
 
 	// Local declarations
 	// {{{
+	localparam	MAX_LENGTH = 1021;
+	localparam	LGMX = $clog2(MAX_LENGTH+1);
 	reg	f_past_valid;
 	(* anyseq *)	reg		phy_ready;
 	(* anyconst *)	reg		phy_reliable;
@@ -72,7 +74,7 @@ module	sata_crc_wrapper #(
 	(* anyconst *)	reg		f_ckval;
 	(* anyconst *)	reg	[31:0]	f_ckword;
 	(* anyconst *)	reg	[31:0]	f_value;
-	reg	[31:0]	s_word, m_word, tx_word;
+	reg	[LGMX-1:0]	fs_word, s_word, m_word, tx_word;
 
 	wire		tx_valid, tx_ready, tx_last;
 	wire	[W-1:0]	tx_data;
@@ -102,7 +104,8 @@ module	sata_crc_wrapper #(
 	assign	tx_ready = 1;
 
 	satarx_crc #(
-		.OPT_LOWPOWER(OPT_LOWPOWER)
+		.OPT_LOWPOWER(OPT_LOWPOWER),
+		.MAX_LENGTH(MAX_LENGTH)
 	) rx (
 		// {{{
 		.S_AXI_ACLK(i_clk), .S_AXI_ARESETN(!i_reset),
@@ -118,6 +121,7 @@ module	sata_crc_wrapper #(
 		.M_AXIS_TABORT(M_AXIS_TABORT),
 		.M_AXIS_TLAST(M_AXIS_TLAST),
 		//
+		.fs_word(fs_word),
 		.f_crc(rx_crc),
 		.f_valid(rx_rvalid), .f_data(rx_rdata)
 		// }}}
@@ -132,7 +136,6 @@ module	sata_crc_wrapper #(
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-
 	// Reset
 	// {{{
 	initial	f_past_valid = 1'b0;
@@ -226,6 +229,9 @@ module	sata_crc_wrapper #(
 		else
 			tx_word <= tx_word + 1;
 	end
+
+	always @(posedge i_clk)
+		assert(fs_word == tx_word);
 	// }}}
 
 	// m_word
@@ -248,14 +254,22 @@ module	sata_crc_wrapper #(
 		assume(!S_AXIS_TVALID || !S_AXIS_TLAST);
 
 	always @(*)
-		assume(s_word < 4096);
+	if (S_AXIS_TVALID)
+	begin
+		assume(s_word + 1 < MAX_LENGTH-2 + (S_AXIS_TLAST ? 1:0));
+	end else
+		assume(s_word < MAX_LENGTH-2);
 
 	always @(*)
-		assert(tx_word + (tx_valid ? 1:0)
-				<= 4096 + ((tx_valid && tx_last) ? 1:0));
+	if (tx_valid)
+	begin
+		assert(tx_word <= MAX_LENGTH-1+ (tx_last ? 1:0));
+	end else
+		assert(tx_word <= MAX_LENGTH-1);
 
 	always @(*)
-		assert(m_word +((M_AXIS_TVALID && !M_AXIS_TLAST) ? 1:0) < 4096);
+		assert(m_word +((M_AXIS_TVALID && !M_AXIS_TLAST) ? 1:0)
+					< MAX_LENGTH-1);
 
 	always @(*)
 	if (!i_reset && tx_word > 0)

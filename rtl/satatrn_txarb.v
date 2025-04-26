@@ -45,7 +45,7 @@ module	satatrn_txarb #(
 
 	// Move the FIS data to the PHY clock
 	// {{{
-	afifo #(
+	sata_afifo #(
 		.WIDTH(1+32), .LGFIFO(LGAFIFO)
 	) u_reg_afifo (
 		.i_wclk(i_clk), .i_wr_reset_n(!i_reset),

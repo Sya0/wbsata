@@ -80,7 +80,7 @@ module	satalnk_rxpacket #(
 	wire		df_valid, df_last, df_ready, df_abort;
 	wire	[31:0]	df_data;
 
-	wire		ds_valid, ds_last;
+	wire		ds_valid, ds_last, ds_abort;
 	wire	[31:0]	ds_data;
 
 	wire	[31:0]	crc_data;
@@ -119,7 +119,7 @@ module	satalnk_rxpacket #(
 	) descrambler (
 		// {{{
 		.S_AXI_ACLK(i_clk),
-		.S_AXI_ARESETN(!i_reset && !df_abort),
+		.S_AXI_ARESETN(!i_reset),
 		//
 		.i_cfg_scrambler_en(i_cfg_scrambler_en),
 		//
@@ -127,11 +127,13 @@ module	satalnk_rxpacket #(
 		.S_AXIS_TREADY(df_ready),
 		.S_AXIS_TDATA(SWAP_ENDIAN(df_data)),
 		.S_AXIS_TLAST(df_last),
+		.S_AXIS_TABORT(df_abort),
 		//
 		.M_AXIS_TVALID(ds_valid),
 		.M_AXIS_TREADY(1'b1),
 		.M_AXIS_TDATA(ds_data),
-		.M_AXIS_TLAST(ds_last)
+		.M_AXIS_TLAST(ds_last),
+		.M_AXIS_TABORT(ds_abort)
 		// }}}
 	);
 	// }}}
@@ -151,6 +153,7 @@ module	satalnk_rxpacket #(
 		// .S_AXIS_TREADY(ds_ready),
 		.S_AXIS_TDATA(ds_data),
 		.S_AXIS_TLAST(ds_last),
+		.S_AXIS_TABORT(ds_abort),
 		//
 		.M_AXIS_TVALID(m_valid),
 		// .M_AXIS_TREADY(m_ready),
@@ -162,7 +165,7 @@ module	satalnk_rxpacket #(
 	// }}}
 
 	assign	m_data  = SWAP_ENDIAN(crc_data);
-	assign	m_abort = crc_abort || df_abort;
+	assign	m_abort = crc_abort;
 
 	function [31:0] SWAP_ENDIAN(input [31:0] swap_data);
 		// {{{

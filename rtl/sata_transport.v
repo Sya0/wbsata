@@ -123,12 +123,11 @@ module	sata_transport #(
 
 	reg		phy_reset_n;
 	reg	[1:0]	phy_reset_xpipe;
-	wire		rxdma_reset, txdma_reset;
+	wire		rxdma_reset; // txdma_reset;
 	(* ASYNC_REG="TRUE" *)
-	reg		rx_reset_phyclk, tx_reset_phyclk;
+	reg		rx_reset_phyclk;
 	(* ASYNC_REG="TRUE" *)
-	reg	[1:0]	rx_reset_xpipe,  tx_reset_xpipe;
-
+	reg	[1:0]	rx_reset_xpipe;
 
 	wire			s2mm_cyc, s2mm_stb, s2mm_we,
 				s2mm_ack, s2mm_stall, s2mm_err;
@@ -210,8 +209,6 @@ module	sata_transport #(
 					<= { rx_reset_xpipe, rxdma_reset };
 
 	// assign	txdma_reset = !(mm2s_core_request || mm2s_core_busy);
-	always @(posedge i_phy_clk)
-		{ tx_reset_phyclk, tx_reset_xpipe } <= 0;
 
 	initial { wb_link_up, wb_link_up_xpipe } = 2'b00;
 	always @(posedge i_clk)

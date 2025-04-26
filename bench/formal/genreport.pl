@@ -66,20 +66,26 @@ $dir = ".";
 	"sata_afifo",
 	"sata_sfifo",
 	"sata_skid"
-	## satalnk_fsm,
-	## sata_phyinit,
+	## These may get formally verified at a later date:
+	## ============================================================
 	## sata_reset,
+	## satalnk_fsm,
 	## satatrn_fsm
 	##
-	## Contain vendor macro black boxes:
+	## Contains vendor macro black boxes:
+	## ============================================================
 	## sata_phy
+	## ==> With no open Verilog model, cannot be formally verified
 	##
 	## Not leaf modules:
+	## ============================================================
+	## sata_phyinit,
 	## satalnk_rxpacket
 	## satalnk_txpacket
 	## sata_controller
 	## sata_link
 	## sata_transport
+	## ==> therefore not formally verified
 	);
 
 %desc = (
@@ -108,7 +114,6 @@ $dir = ".";
 	"sata_sfifo"		=> "Synchronous FIFO",
 	"sata_skid"		=> "Skidbuffer"
 	## satalnk_fsm
-	## sata_phyinit
 	## sata_reset
 	## satatrn_fsm
 	##
@@ -116,6 +121,8 @@ $dir = ".";
 	## sata_phy
 	##
 	## Not leaf modules:
+	## =================
+	## sata_phyinit
 	## satalnk_rxpacket
 	## satalnk_txpacket
 	## sata_controller

@@ -82,6 +82,7 @@ module	satarx_crc #(
 		// output	wire		S_AXIS_TFULL,
 		input	wire	[31:0]	S_AXIS_TDATA,
 		input	wire		S_AXIS_TLAST,	// True on CRC word
+		input	wire		S_AXIS_TABORT,
 		// }}}
 		// Outgoing data
 		// {{{
@@ -139,13 +140,19 @@ module	satarx_crc #(
 		r_valid <= 1'b0;
 		r_data  <= 0;
 		r_last  <= 1'b0;
-	end else if (S_AXIS_TVALID)
-	begin
-		r_valid <= (!i_cfg_crc_en || !S_AXIS_TLAST);
-		r_data  <= S_AXIS_TDATA;
-		r_last  <= S_AXIS_TLAST;
-	end else if (!i_cfg_crc_en)
-		r_valid <= 1'b0;
+	end else begin
+		if (S_AXIS_TVALID)
+		begin
+			r_valid <= (!i_cfg_crc_en || !S_AXIS_TLAST);
+			r_data  <= S_AXIS_TDATA;
+			r_last  <= S_AXIS_TLAST;
+		end else if (!i_cfg_crc_en)
+			r_valid <= 1'b0;
+
+		if (S_AXIS_TABORT)
+			r_valid <= 0;
+
+	end
 	// }}}
 
 	// M_AXIS*
@@ -157,6 +164,9 @@ module	satarx_crc #(
 		M_AXIS_TVALID <= 1'b0;
 		M_AXIS_TABORT <= (r_valid && S_AXIS_TVALID && S_AXIS_TLAST)
 				&& (crc != S_AXIS_TDATA) && i_cfg_crc_en;
+
+		if ((r_valid || !i_cfg_crc_en) && S_AXIS_TABORT)
+			M_AXIS_TABORT <= 1'b1;
 
 		if (OPT_LOWPOWER)
 		begin
@@ -215,7 +225,7 @@ module	satarx_crc #(
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
 	reg		f_past_valid;
-	wire	[LGMX-1:0]	fm_word;
+	wire	[LGMX-1:0]	fm_word, fsum;
 	wire	[12-1:0]	fs_pkts, fm_pkts;
 	(* anyconst *)	reg	r_en;
 
@@ -229,7 +239,10 @@ module	satarx_crc #(
 	assign	f_crc = crc;
 	assign	f_valid = r_valid;
 	assign	f_data = r_data;
-
+	////////////////////////////////////////////////////////////////////////
+	//
+	// AXIN property set(s)
+	// {{{
 `ifdef	RXCRC
 	faxin_slave
 `else
@@ -249,7 +262,7 @@ module	satarx_crc #(
 		.S_AXIN_DATA(S_AXIS_TDATA),
 		.S_AXIN_BYTES(0),
 		.S_AXIN_LAST(S_AXIS_TLAST),
-		.S_AXIN_ABORT(1'b0),
+		.S_AXIN_ABORT(S_AXIS_TABORT),
 		//
 		.f_stream_word(fs_word),
 		.f_packets_rcvd(fs_pkts)
@@ -282,20 +295,20 @@ module	satarx_crc #(
 		.f_packets_rcvd(fm_pkts)
 		// }}}
 	);
+	// }}}
 
 	always @(*)
 	if (S_AXI_ARESETN && M_AXIS_TVALID && !M_AXIS_TLAST && r_en)
 	begin
-		assert(r_valid);
+		assert(r_valid || M_AXIS_TABORT);
 	end
 
-	always @(*)
-	if (S_AXI_ARESETN && (!M_AXIS_TVALID || !M_AXIS_TLAST))
-	begin
-		assert(!M_AXIS_TABORT);
-	end
+	// always @(*)
+	// if (S_AXI_ARESETN && (!M_AXIS_TVALID || !M_AXIS_TLAST))
+	// begin
+		// assert(!M_AXIS_TABORT);
+	// end
 
-	wire	[9:0]	fsum;
 	assign	fsum = fm_word + (M_AXIS_TVALID ? 1:0) + (r_valid ? 1:0);
 	always @(posedge S_AXI_ACLK)
 	if (S_AXI_ARESETN)
@@ -311,7 +324,7 @@ module	satarx_crc #(
 			assert(fs_word == (r_valid ? 1:0));
 		if (r_valid && r_last)
 			assert(fs_word == 0);
-		if (fs_word == 0 && (r_valid || fm_word != 0))
+		if (fs_word == 0 && (r_valid || fm_word != 0) && !M_AXIS_TABORT)
 			assert((r_valid && r_last) || (M_AXIS_TVALID && M_AXIS_TLAST));
 		if (fs_word > 0 && (!r_valid || !r_last) && (!M_AXIS_TVALID || !M_AXIS_TLAST))
 		begin
@@ -324,13 +337,20 @@ module	satarx_crc #(
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Cover checks
-
+	// {{{
 	always @(posedge S_AXI_ACLK)
 	if (S_AXI_ARESETN)
 	begin
 		cover(fm_word > 5 && M_AXIS_TVALID && M_AXIS_TLAST && !M_AXIS_TABORT);
 		cover(fm_word > 5 && M_AXIS_TVALID && M_AXIS_TABORT);
 	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// "Careless" assumptions
+	// {{{
+	// always @(*) assume(r_en);
+	// }}}
 `endif
 // }}}
 endmodule

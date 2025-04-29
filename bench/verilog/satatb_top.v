@@ -67,11 +67,11 @@ module	satatb_top;
 	//	SCOPE_LINK_ADDR   = { 6'b011001,{(ADDRESS_WIDTH-6){1'b0}} },
 	//	SCOPE_RESET_ADDR  = { 6'b011010,{(ADDRESS_WIDTH-6){1'b0}} };
 	localparam [ADDRESS_WIDTH-1:0]
-			MEM_MASK  = { 1'b1,    {(ADDRESS_WIDTH-1){1'b0}} },
-			ZDBG_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
-			CONS_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
-			SATA_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
-			DRP_MASK  = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} };
+			MEM_MASK  = { 1'b1,    {(ADDRESS_WIDTH- 1){1'b0}} },
+			ZDBG_MASK = { 4'b1111, {(ADDRESS_WIDTH-11){1'b1}}, 7'h0 },
+			CONS_MASK = { 4'b1111, {(ADDRESS_WIDTH- 4){1'b0}} },
+			SATA_MASK = { 4'b1111, {(ADDRESS_WIDTH- 9){1'b1}}, 5'h0 },
+			DRP_MASK  = { 4'b1111, {(ADDRESS_WIDTH-16){1'b1}}, 12'h0, };
 	//	SCOPE_TRAN_MASK   = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} },
 	//	SCOPE_LINK_MASK   = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} },
 	//	SCOPE_RESET_MASK  = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} };
@@ -145,7 +145,7 @@ module	satatb_top;
 
 	wire			drp_cyc,  drp_stb;
 	wire			drp_we,   drp_stall, drp_ack, drp_err;
-	wire	[9-1:0]		drp_addr;
+	wire	[10-1:0]	drp_addr;
 	wire	[32-1:0]	drp_data, drp_idata;
 	wire	[32/8-1:0]	drp_sel;
 	// }}}
@@ -552,7 +552,7 @@ module	satatb_top;
 	);
 
 	wbdown #(
-		.ADDRESS_WIDTH(11),
+		.ADDRESS_WIDTH(12),
 		.WIDE_DW(DW), .SMALL_DW(32)
 	) u_drp_down (
 		// {{{

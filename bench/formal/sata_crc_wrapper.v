@@ -115,6 +115,7 @@ module	sata_crc_wrapper #(
 		.S_AXIS_TVALID(tx_valid && phy_ready),
 		.S_AXIS_TDATA(tx_data ^ phy_errors),
 		.S_AXIS_TLAST(tx_last),
+		.S_AXIS_TABORT(1'b0),
 		//
 		.M_AXIS_TVALID(M_AXIS_TVALID),
 		.M_AXIS_TDATA(M_AXIS_TDATA),

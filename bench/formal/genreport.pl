@@ -230,7 +230,7 @@ $tstamp = sprintf("%04d%02d%02d",$nyr,$nmo,$ndy);
 print <<"EOM";
 <HTML><HEAD><TITLE>Formal Verification Report</TITLE></HEAD>
 <BODY>
-<H1 align=center>SD Controller Formal Verification Report</H1>
+<H1 align=center>SATA Controller Formal Verification Report</H1>
 <H2 align=center>$tstamp</H2>
 <TABLE border align=center>
 <TR><TH>Status</TH><TH>Component</TD><TH>Proof</TH><TH>Component description</TH></TR>

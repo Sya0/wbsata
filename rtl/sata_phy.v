@@ -64,7 +64,7 @@ module	sata_phy #(
 		// Wishbone DRP Control
 		// {{{
 		input	wire		i_wb_cyc, i_wb_stb, i_wb_we,
-		input	wire	[8:0]	i_wb_addr,
+		input	wire	[9:0]	i_wb_addr,
 		input	wire	[31:0]	i_wb_data,
 		input	wire	[3:0]	i_wb_sel,
 		output	wire		o_wb_stall,
@@ -299,10 +299,10 @@ module	sata_phy #(
 	//
 	//
 	wire		i_drp_clk;
-	wire		i_drp_enable, i_drp_we;
-	wire	[8:0]	i_drp_addr;
-	wire	[15:0]	i_drp_data, o_drp_data;
-	wire		o_drp_ready;
+	wire		i_drp_enable, i_drp_we, gtx_drp_enable, pll_drp_enable;
+	wire	[9:0]	i_drp_addr;
+	wire	[15:0]	i_drp_data, pll_drp_data, gtx_drp_data;
+	wire		gtx_drp_ready, pll_drp_ready;
 	reg		pending_ack, drop_wb_ack;
 
 	assign	i_drp_clk    = i_wb_clk;
@@ -311,6 +311,8 @@ module	sata_phy #(
 	assign	i_drp_we     = i_drp_enable && i_wb_we;
 	assign	o_wb_stall   = !pending_ack;
 	assign	i_drp_addr   = i_wb_addr[8:0];
+	assign	pll_drp_enable = i_drp_enable && !i_wb_addr[9];
+	assign	gtx_drp_enable = i_drp_enable &&  i_wb_addr[9];
 	// assign	o_wb_data    = { 16'h0, o_drp_data };
 	// assign	o_wb_ack     = o_drp_ready;
 
@@ -319,7 +321,7 @@ module	sata_phy #(
 	if (i_reset)
 		pending_ack <= 1'b0;
 	else if (pending_ack)
-		pending_ack <= !o_drp_ready;
+		pending_ack <= !pll_drp_ready && !gtx_drp_ready;
 	else if (i_wb_stb && !o_wb_stall)
 		pending_ack <= (&i_wb_sel[1:0]);
 
@@ -327,7 +329,7 @@ module	sata_phy #(
 	always @(posedge i_drp_clk)
 	if (i_reset)
 		drop_wb_ack <= 1'b0;
-	else if (o_drp_ready)
+	else if (pll_drp_ready || gtx_drp_ready)
 		drop_wb_ack <= 1'b0;
 	else if (pending_ack && !i_wb_cyc)
 		drop_wb_ack <= 1'b1;
@@ -337,12 +339,18 @@ module	sata_phy #(
 	if (i_reset || !i_wb_cyc)
 		o_wb_ack <= 1'b0;
 	else if (pending_ack)
-		o_wb_ack <= o_drp_ready && !drop_wb_ack;
+		o_wb_ack <= (pll_drp_ready || gtx_drp_ready) && !drop_wb_ack;
 	else
 		o_wb_ack <= i_wb_stb && (i_wb_sel[1:0] != 2'b11);
 
 	always @(posedge i_drp_clk)
-		o_wb_data <= { 16'h0, o_drp_data };
+	begin
+		o_wb_data <= 32'h0;
+		if (gtx_drp_ready)
+			o_wb_data <= { 16'h0, gtx_drp_data };
+		if (pll_drp_ready)
+			o_wb_data <= { 16'h0, pll_drp_data };
+	end
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -491,12 +499,12 @@ module	sata_phy #(
 			// DRP
 			// {{{
 			.DRPCLK(i_wb_clk),
-			.DRPEN(1'b0),
-			.DRPWE(1'b0),
-			.DRPADDR(8'h0),
-			.DRPDI(16'h0),
-			.DRPDO(),
-			.DRPRDY(),
+			.DRPEN(pll_drp_enable),
+			.DRPWE(i_drp_we),
+			.DRPADDR(i_drp_addr[7:0]),
+			.DRPDI(i_drp_data[15:0]),
+			.DRPDO(pll_drp_data[15:0]),
+			.DRPRDY(pll_drp_ready),
 			// }}}
 			// Unused
 			// {{{
@@ -981,12 +989,12 @@ module	sata_phy #(
 		// {{{
 		(* invertible_pin = "IS_DRPCLK_INVERTED" *)
 		.DRPCLK(i_drp_clk),
-		.DRPRDY(o_drp_ready),
+		.DRPRDY(gtx_drp_ready),
 		.DRPADDR(i_drp_addr),
 		.DRPDI(i_drp_data[15:0]),
-		.DRPEN(i_drp_enable),
+		.DRPEN(gtx_drp_enable),
 		.DRPWE(i_drp_we),
-		.DRPDO(o_drp_data),
+		.DRPDO(gtx_drp_data),
 		// }}}
 		// Digital monitor
 		// {{{

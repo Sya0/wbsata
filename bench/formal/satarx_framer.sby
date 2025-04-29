@@ -3,7 +3,8 @@ prf
 cvr
 
 [options]
-prf: mode prove
+prf: mode prove		# Can take 5hrs on my desktop
+prf: depth 4
 cvr: mode cover
 
 [engines]

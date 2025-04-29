@@ -3,7 +3,7 @@ prf
 cvr
 
 [options]
-depth 5		# Depth 6 takes too long (16hrs+)
+depth 3		# Depth 4 takes too long (16hrs+)
 prf: mode prove
 cvr: mode cover
 cvr: depth 15

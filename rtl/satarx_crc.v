@@ -62,6 +62,13 @@ module	satarx_crc #(
 		parameter	[31:0]	POLYNOMIAL = 32'h04c1_1db7,
 		parameter	[31:0]	INITIAL_CRC = 32'h5232_5032,
 		parameter	[0:0]	OPT_LOWPOWER = 1'b1
+`ifdef	FORMAL
+		// The maximum packet length is really quite arbitrary.
+		// We need it, though, to size our register counters
+		, parameter	MAX_LENGTH = 1022,
+		localparam	MIN_LENGTH = 3,
+		localparam	LGMX = $clog2(MAX_LENGTH+1)
+`endif
 		// }}}
 	) (
 		// {{{
@@ -75,6 +82,7 @@ module	satarx_crc #(
 		// output	wire		S_AXIS_TFULL,
 		input	wire	[31:0]	S_AXIS_TDATA,
 		input	wire		S_AXIS_TLAST,	// True on CRC word
+		input	wire		S_AXIS_TABORT,
 		// }}}
 		// Outgoing data
 		// {{{
@@ -87,9 +95,10 @@ module	satarx_crc #(
 		// }}}
 `ifdef	FORMAL
 		// {{{
-		, output wire	[31:0]	f_crc
-		, output wire		f_valid
-		, output wire [31:0]	f_data
+		, output wire	[LGMX-1:0]	fs_word
+		, output wire	[31:0]		f_crc
+		, output wire			f_valid
+		, output wire [31:0]		f_data
 		// }}}
 `endif
 		// }}}
@@ -105,17 +114,17 @@ module	satarx_crc #(
 
 	// crc
 	// {{{
-	initial	crc        = INITIAL_CRC;
+	initial	crc = INITIAL_CRC;
 	always @(posedge S_AXI_ACLK)
 	if (!S_AXI_ARESETN)
 	begin
-		crc       <= INITIAL_CRC;
+		crc <= INITIAL_CRC;
 	end else if (S_AXIS_TVALID)
 	begin
 
 		if (S_AXIS_TLAST)
 		begin
-			crc   <= INITIAL_CRC;
+			crc <= INITIAL_CRC;
 		end else
 			crc <= advance_crc(crc, S_AXIS_TDATA);
 	end
@@ -131,11 +140,18 @@ module	satarx_crc #(
 		r_valid <= 1'b0;
 		r_data  <= 0;
 		r_last  <= 1'b0;
-	end else if (S_AXIS_TVALID)
-	begin
-		r_valid <= S_AXIS_TVALID && (!i_cfg_crc_en || !S_AXIS_TLAST);
-		r_data  <= S_AXIS_TDATA;
-		r_last  <= S_AXIS_TLAST;
+	end else begin
+		if (S_AXIS_TVALID)
+		begin
+			r_valid <= (!i_cfg_crc_en || !S_AXIS_TLAST);
+			r_data  <= S_AXIS_TDATA;
+			r_last  <= S_AXIS_TLAST;
+		end else if (!i_cfg_crc_en)
+			r_valid <= 1'b0;
+
+		if (S_AXIS_TABORT)
+			r_valid <= 0;
+
 	end
 	// }}}
 
@@ -148,6 +164,9 @@ module	satarx_crc #(
 		M_AXIS_TVALID <= 1'b0;
 		M_AXIS_TABORT <= (r_valid && S_AXIS_TVALID && S_AXIS_TLAST)
 				&& (crc != S_AXIS_TDATA) && i_cfg_crc_en;
+
+		if ((r_valid || !i_cfg_crc_en) && S_AXIS_TABORT)
+			M_AXIS_TABORT <= 1'b1;
 
 		if (OPT_LOWPOWER)
 		begin
@@ -205,21 +224,133 @@ module	satarx_crc #(
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
+	reg		f_past_valid;
+	wire	[LGMX-1:0]	fm_word, fsum;
+	wire	[12-1:0]	fs_pkts, fm_pkts;
+	(* anyconst *)	reg	r_en;
+
+	always @(*)
+		assume(i_cfg_crc_en == r_en);
+
+	initial	f_past_valid = 0;
+	always @(posedge S_AXI_ACLK)
+		f_past_valid <= 1;
+
 	assign	f_crc = crc;
 	assign	f_valid = r_valid;
 	assign	f_data = r_data;
+	////////////////////////////////////////////////////////////////////////
+	//
+	// AXIN property set(s)
+	// {{{
+`ifdef	RXCRC
+	faxin_slave
+`else
+	faxin_master
+`endif
+	#(
+		.DATA_WIDTH(32),
+		.MIN_LENGTH(MIN_LENGTH+1),
+		.MAX_LENGTH(MAX_LENGTH)
+	) f_slv (
+		// {{{
+		.S_AXI_ACLK(S_AXI_ACLK),
+		.S_AXI_ARESETN(S_AXI_ARESETN),
+		//
+		.S_AXIN_VALID(S_AXIS_TVALID),
+		.S_AXIN_READY(1'b1),
+		.S_AXIN_DATA(S_AXIS_TDATA),
+		.S_AXIN_BYTES(0),
+		.S_AXIN_LAST(S_AXIS_TLAST),
+		.S_AXIN_ABORT(S_AXIS_TABORT),
+		//
+		.f_stream_word(fs_word),
+		.f_packets_rcvd(fs_pkts)
+		// }}}
+	);
+
+`ifndef	RXCRC
+	always @(*)
+	if (S_AXI_ARESETN)
+		assume(fs_word >= MIN_LENGTH+2 || !S_AXIS_TVALID || !S_AXIS_TLAST);
+`endif
+
+	faxin_master #(
+		.DATA_WIDTH(32),
+		.MAX_LENGTH(MAX_LENGTH),
+		.MIN_LENGTH(MIN_LENGTH)
+	) f_master (
+		// {{{
+		.S_AXI_ACLK(S_AXI_ACLK),
+		.S_AXI_ARESETN(S_AXI_ARESETN),
+		//
+		.S_AXIN_VALID(M_AXIS_TVALID),
+		.S_AXIN_READY(1'b1),
+		.S_AXIN_DATA(M_AXIS_TDATA),
+		.S_AXIN_BYTES(0),
+		.S_AXIN_LAST(M_AXIS_TLAST),
+		.S_AXIN_ABORT(M_AXIS_TABORT),
+		//
+		.f_stream_word(fm_word),
+		.f_packets_rcvd(fm_pkts)
+		// }}}
+	);
+	// }}}
 
 	always @(*)
-	if (S_AXI_ARESETN && M_AXIS_TVALID && !M_AXIS_TLAST)
+	if (S_AXI_ARESETN && M_AXIS_TVALID && !M_AXIS_TLAST && r_en)
 	begin
-		assert(r_valid);
+		assert(r_valid || M_AXIS_TABORT);
 	end
 
-	always @(*)
-	if (S_AXI_ARESETN && (!M_AXIS_TVALID || !M_AXIS_TLAST))
+	// always @(*)
+	// if (S_AXI_ARESETN && (!M_AXIS_TVALID || !M_AXIS_TLAST))
+	// begin
+		// assert(!M_AXIS_TABORT);
+	// end
+
+	assign	fsum = fm_word + (M_AXIS_TVALID ? 1:0) + (r_valid ? 1:0);
+	always @(posedge S_AXI_ACLK)
+	if (S_AXI_ARESETN)
 	begin
-		assert(!M_AXIS_TABORT);
+		if (fm_word == MAX_LENGTH-1 && !M_AXIS_TVALID)
+			assert(!r_valid || r_last);
+		if (fs_word > 0 && r_en)
+			assert(r_valid);
+		if (r_en)
+			assert(!r_valid || !r_last);
+
+		if ((!r_valid || !r_last) && M_AXIS_TVALID && M_AXIS_TLAST)
+			assert(fs_word == (r_valid ? 1:0));
+		if (r_valid && r_last)
+			assert(fs_word == 0);
+		if (fs_word == 0 && (r_valid || fm_word != 0) && !M_AXIS_TABORT)
+			assert((r_valid && r_last) || (M_AXIS_TVALID && M_AXIS_TLAST));
+		if (fs_word > 0 && (!r_valid || !r_last) && (!M_AXIS_TVALID || !M_AXIS_TLAST))
+		begin
+			assert(fs_word == fsum);
+				// fm_word
+				// + (M_AXIS_TVALID ? 1:0) + (r_valid ? 1:0));
+			assert(!r_last);
+		end
 	end
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Cover checks
+	// {{{
+	always @(posedge S_AXI_ACLK)
+	if (S_AXI_ARESETN)
+	begin
+		cover(fm_word > 5 && M_AXIS_TVALID && M_AXIS_TLAST && !M_AXIS_TABORT);
+		cover(fm_word > 5 && M_AXIS_TVALID && M_AXIS_TABORT);
+	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// "Careless" assumptions
+	// {{{
+	// always @(*) assume(r_en);
+	// }}}
 `endif
 // }}}
 endmodule

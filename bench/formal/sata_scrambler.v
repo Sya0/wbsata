@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2021-2024, Gisselquist Technology, LLC
+// Copyright (C) 2021-2025, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WBSATA project.
 //
@@ -112,6 +112,7 @@ module	sata_scrambler #(
 		.S_AXIS_TREADY(tx_ready),
 		.S_AXIS_TDATA(tx_data),
 		.S_AXIS_TLAST(tx_last),
+		.S_AXIS_TABORT(1'b0),
 		//
 		.M_AXIS_TVALID(M_AXIS_TVALID),
 		.M_AXIS_TREADY(M_AXIS_TREADY),

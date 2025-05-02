@@ -1,0 +1,21 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+cvr: mode cover
+
+[engines]
+smtbmc
+
+[script]
+read -formal satatx_framer.v
+--pycode-begin--
+cmd = "hierarchy -top satatx_framer"
+output(cmd)
+--pycode-end--
+prep -top satatx_framer
+
+[files]
+../../rtl/satatx_framer.v

@@ -126,7 +126,7 @@ module	satatx_crc #(
 		begin
 			M_AXIS_TVALID <= (S_AXIS_TVALID && S_AXIS_TREADY) || (state == S_CRC);
 			M_AXIS_TDATA  <= (state == S_CRC) ? crc : S_AXIS_TDATA;
-			M_AXIS_TLAST  <= (state == S_CRC);
+			M_AXIS_TLAST  <= (state == S_CRC) && !M_AXIS_TLAST;
 
 			if (OPT_LOWPOWER && !S_AXIS_TVALID && (state != S_CRC))
 				{ M_AXIS_TLAST, M_AXIS_TDATA } <= 0;
@@ -171,6 +171,17 @@ module	satatx_crc #(
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
+	reg	f_past_valid;
+	reg	[15:0]	fs_word, fm_word;
+
+	initial	f_past_valid = 0;
+	always @(posedge S_AXI_ACLK)
+		f_past_valid <= 1;
+
+	always @(*)
+	if (!f_past_valid)
+		assume(!S_AXI_ARESETN);
+
 	always @(*)
 	if (S_AXI_ARESETN)
 		assert(state != 2'b11);
@@ -183,7 +194,116 @@ module	satatx_crc #(
 	if (S_AXI_ARESETN && M_AXIS_TLAST)
 		assert(M_AXIS_TVALID);
 
+	always @(*)
+	if (S_AXI_ARESETN && state == S_CRC && M_AXIS_TVALID)
+		assert(!M_AXIS_TLAST);
+
+	always @(*)
+	if (S_AXI_ARESETN && M_AXIS_TVALID && M_AXIS_TLAST)
+		assert(crc == INITIAL_CRC);
+
 	assign	f_crc = crc;
 	assign	f_state = state;
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Stream properties
+	// {{{
+	always @(posedge S_AXI_ACLK)
+	if (!f_past_valid || !$past(S_AXI_ARESETN))
+		assume(!S_AXIS_TVALID);
+	else if ($past(S_AXIS_TVALID && !S_AXIS_TREADY))
+	begin
+		assume(S_AXIS_TVALID);
+		assume($stable(S_AXIS_TDATA));
+		assume($stable(S_AXIS_TLAST));
+	end
+
+	always @(posedge S_AXI_ACLK)
+	if (!f_past_valid || !$past(S_AXI_ARESETN))
+		assert(!M_AXIS_TVALID);
+	else if ($past(M_AXIS_TVALID && !M_AXIS_TREADY))
+	begin
+		assert(M_AXIS_TVALID);
+		assert($stable(M_AXIS_TDATA));
+		assert($stable(M_AXIS_TLAST));
+	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Stream position counting
+	// {{{
+
+	///////////
+	//
+	// Slave stream counting
+
+	initial	fs_word = 0;
+	always @(posedge S_AXI_ACLK)
+	if (!S_AXI_ARESETN)
+		fs_word <= 0;
+	else if (S_AXIS_TVALID && S_AXIS_TREADY)
+	begin
+		fs_word <= fs_word + 1;
+		if (S_AXIS_TLAST)
+			fs_word <= 0;
+	end
+
+	///////////
+	//
+	// Make sure the source counter never overflows
+	always @(*)
+	if (fs_word >= 16'hfffc)
+		assume(!S_AXIS_TVALID || S_AXIS_TLAST);
+
+	always @(*)
+		assert(fs_word <= 16'hfffc);
+
+	///////////
+	//
+	// Master stream counting
+
+	initial	fm_word = 0;
+	always @(posedge S_AXI_ACLK)
+	if (!S_AXI_ARESETN)
+		fm_word <= 0;
+	else if (M_AXIS_TVALID && M_AXIS_TREADY)
+	begin
+		fm_word <= fm_word + 1;
+		if (M_AXIS_TLAST)
+			fm_word <= 0;
+	end
+
+	///////////
+	//
+	// Cross stream count correlations
+
+	always @(*)
+	if (S_AXI_ARESETN)
+	begin
+		assert(fm_word <= 16'hfffd);
+		if (fm_word == 16'hfffd)
+			assert(M_AXIS_TVALID && M_AXIS_TLAST);
+
+		if (state == S_CRC || (M_AXIS_TVALID && M_AXIS_TLAST))
+		begin
+			assert(fs_word == 0);
+		end else begin
+			assert(!M_AXIS_TVALID || !M_AXIS_TLAST);
+			assert(fs_word == fm_word + (M_AXIS_TVALID ? 1:0));
+		end
+	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Cover checks
+	// {{{
+	always @(posedge S_AXI_ACLK)
+	if (S_AXI_ARESETN)
+	begin
+		cover(M_AXIS_TVALID && M_AXIS_TREADY && M_AXIS_TLAST && fm_word > 5);
+		cover(M_AXIS_TVALID && M_AXIS_TREADY && M_AXIS_TLAST && fm_word > 7);
+		cover(M_AXIS_TVALID && M_AXIS_TREADY && M_AXIS_TLAST && fm_word > 8);
+	end
+	// }}}
 `endif
 endmodule

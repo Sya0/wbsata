@@ -77,6 +77,7 @@ module	satarx_framer #(
 	assign	i_primitive = S_AXIS_TDATA[32];
 
 	initial	M_AXIS_TVALID = 0;
+	initial	M_AXIS_TABORT = 0;
 	always @(posedge S_AXI_ACLK)
 	begin
 		// M_AXIS_* default values
@@ -104,8 +105,12 @@ module	satarx_framer #(
 				end
 				// }}}
 			end else case( S_AXIS_TDATA[31:0])
-			P_SOF[31:0]: r_state <= S_DATA;
-			P_EOF[31:0]: begin
+			P_SOF[31:0]: begin	// Start of Frame (packet)
+				r_state <= S_DATA;
+				M_AXIS_TABORT <= (r_state == S_DATA) || r_valid
+					|| (M_AXIS_TVALID && !M_AXIS_TLAST);
+				end
+			P_EOF[31:0]: begin	// End of Frame (packet)
 				// {{{
 				r_state <= S_IDLE;
 				r_valid <= 1'b0;
@@ -116,11 +121,14 @@ module	satarx_framer #(
 				M_AXIS_TLAST  <= 1;
 				end
 				// }}}
-			P_WTRM[31:0]: begin
+			P_WTRM[31:0]: begin // Wait for termination
 				// {{{
+				// This only happens following an EOF.
+				// If we never saw the EOF, then we need to
+				// abort anything that was ongoing.
 				r_state <= S_IDLE;
+				r_valid <= 1'b0;
 
-				M_AXIS_TVALID <= r_valid;
 				if (r_valid)
 				begin
 					M_AXIS_TDATA  <= 0;
@@ -131,6 +139,7 @@ module	satarx_framer #(
 			P_SYNC[31:0]: begin
 				// {{{
 				r_state <= S_IDLE;
+				r_valid <= 1'b0;
 
 				if (r_valid)
 				begin
@@ -139,6 +148,8 @@ module	satarx_framer #(
 					M_AXIS_TABORT <= 1;
 				end end
 				// }}}
+			default: begin // Ignore all other potential primitives
+				end
 			endcase
 		end
 
@@ -179,6 +190,17 @@ module	satarx_framer #(
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
+	reg	f_past_valid;
+	(* anyconst *)	reg	[31:0]	fnvr_data;
+
+	initial	f_past_valid = 1'b0;
+	always @(posedge S_AXI_ACLK)
+		f_past_valid <= 1'b1;
+
+	always @(*)
+	if (!f_past_valid)
+		assume(!S_AXI_ARESETN);
+
 	assign	f_rvalid = r_valid;
 	assign	f_rdata  = r_data;
 	assign	f_state  = r_state;
@@ -186,6 +208,32 @@ module	satarx_framer #(
 	always @(*)
 	if (S_AXI_ARESETN && r_state == S_IDLE)
 		assert(!r_valid);
+
+	always @(posedge S_AXI_ACLK)
+	if (!f_past_valid || !$past(S_AXI_ARESETN))
+		assert(!M_AXIS_TVALID && !M_AXIS_TABORT);
+
+	always @(posedge S_AXI_ACLK)
+	if (M_AXIS_TVALID)
+	begin
+		assert(M_AXIS_TLAST != r_valid);
+	end
+
+	always @(posedge S_AXI_ACLK)
+	if (S_AXIS_TVALID)
+		assume(S_AXIS_TDATA != { 1'b0, fnvr_data });
+
+	always @(posedge S_AXI_ACLK)
+	if (S_AXI_ARESETN && r_valid)
+		assert(r_data != fnvr_data);
+
+	always @(posedge S_AXI_ACLK)
+	if (S_AXI_ARESETN && M_AXIS_TVALID)
+		assert(M_AXIS_TDATA != fnvr_data);
+
+	always @(*)
+		assume(fnvr_data != 0);
+
 `endif
 // }}}
 endmodule

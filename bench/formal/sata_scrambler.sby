@@ -3,9 +3,10 @@ prf
 cvr
 
 [options]
-depth 7
 prf: mode prove
+prf: depth 7
 cvr: mode cover
+cvr: depth 20
 
 [engines]
 smtbmc
@@ -14,6 +15,8 @@ smtbmc
 read -formal sata_scrambler.v
 read -formal satatx_scrambler.v
 read -formal satarx_scrambler.v
+read -formal faxin_slave.v
+read -formal faxin_master.v
 --pycode-begin--
 cmd = "hierarchy -top sata_scrambler"
 output(cmd)
@@ -24,3 +27,5 @@ prep -top sata_scrambler
 sata_scrambler.v
 ../../rtl/satarx_scrambler.v
 ../../rtl/satatx_scrambler.v
+faxin_slave.v
+faxin_master.v

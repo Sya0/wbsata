@@ -62,6 +62,7 @@ module	sata_transport #(
 		input	wire		i_reset,
 		// Verilator lint_on  SYNCASYNCNET
 		input	wire		i_phy_clk,
+		output	wire		o_phy_reset,
 		// Wishbone SOC interface
 		// {{{
 		input	wire		i_wb_cyc, i_wb_stb, i_wb_we,
@@ -103,9 +104,7 @@ module	sata_transport #(
 		output	wire		o_tran_empty,
 		input	wire	[31:0]	i_tran_data,
 		input	wire		i_tran_last,
-		// Verilator lint_off SYNCASYNCNET
 		input	wire		i_tran_abort,
-		// Verilator lint_on  SYNCASYNCNET
 		//
 		input	wire		i_link_err, i_link_ready,
 		// }}}
@@ -123,12 +122,11 @@ module	sata_transport #(
 
 	reg		phy_reset_n;
 	reg	[1:0]	phy_reset_xpipe;
-	wire		rxdma_reset, txdma_reset;
+	wire		rxdma_reset; // txdma_reset;
 	(* ASYNC_REG="TRUE" *)
-	reg		rx_reset_phyclk, tx_reset_phyclk;
+	reg		rx_reset_phyclk;
 	(* ASYNC_REG="TRUE" *)
-	reg	[1:0]	rx_reset_xpipe,  tx_reset_xpipe;
-
+	reg	[1:0]	rx_reset_xpipe;
 
 	wire			s2mm_cyc, s2mm_stb, s2mm_we,
 				s2mm_ack, s2mm_stall, s2mm_err;
@@ -145,7 +143,7 @@ module	sata_transport #(
 	wire		rxgear_valid, rxgear_ready, rxgear_last,
 			ign_rxgear_bytes_msb;
 	wire		txgear_valid, txgear_ready, txgear_last;
-	wire	[DW-1:0]	rxgear_data,  txgear_data;
+	wire	[DW-1:0]	rxgear_data, txgear_data;
 	wire [$clog2(DW/8)-1:0]	rxgear_bytes;
 	wire [$clog2(DW/8):0]	ign_txgear_bytes;
 
@@ -210,8 +208,6 @@ module	sata_transport #(
 					<= { rx_reset_xpipe, rxdma_reset };
 
 	// assign	txdma_reset = !(mm2s_core_request || mm2s_core_busy);
-	always @(posedge i_phy_clk)
-		{ tx_reset_phyclk, tx_reset_xpipe } <= 0;
 
 	initial { wb_link_up, wb_link_up_xpipe } = 2'b00;
 	always @(posedge i_clk)
@@ -240,7 +236,7 @@ module	sata_transport #(
 		// {{{
 		.i_clk(i_clk), .i_reset(i_reset),
 		.i_phy_clk(i_phy_clk), .i_phy_reset_n(phy_reset_n),
-		.i_link_err(i_link_err),
+		.i_link_err(i_link_err || i_tran_abort),
 		//
 		.i_valid(i_tran_valid),
 		.i_data(i_tran_data),
@@ -261,6 +257,7 @@ module	sata_transport #(
 		.ADDRESS_WIDTH(ADDRESS_WIDTH), .DW(DW), .LGLENGTH(LGLENGTH)
 	) u_fsm (
 		.i_clk(i_clk), .i_reset(i_reset),
+		.o_phy_reset(o_phy_reset),
 		// Wishbone control inputs
 		// {{{
 		.i_wb_cyc(i_wb_cyc),	.i_wb_stb(i_wb_stb),
@@ -348,7 +345,7 @@ module	sata_transport #(
 		// }}}
 	);
 
-	afifo #(
+	sata_afifo #(
 		// Just need enough of a FIFO to cross clock domains, no more
 		.WIDTH(1+$clog2(DW/8)+DW), .LGFIFO(LGAFIFO)
 	) u_rx_afifo (
@@ -365,7 +362,7 @@ module	sata_transport #(
 		// }}}
 	);
 
-	sfifo #(
+	sata_sfifo #(
 		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO-$clog2(DW/8))
 	) rx_fifo (
 		// {{{
@@ -472,11 +469,11 @@ module	sata_transport #(
 		// }}}
 	);
 
-	sfifo #(
+	sata_sfifo #(
 		.BW(1+$clog2(DW/8)+DW), .LGFLEN(LGFIFO-$clog2(DW/8))
 	) u_txfifo (
 		// {{{
-		.i_clk(i_clk), .i_reset(i_reset || i_tran_abort),
+		.i_clk(i_clk), .i_reset(i_reset),
 		//
 		.i_wr(mm2sgear_valid), 
 		.i_data({ mm2sgear_last, mm2sgear_bytes, mm2sgear_data }),
@@ -491,7 +488,7 @@ module	sata_transport #(
 	assign	mm2sgear_ready = !txfifo_full;
 
 	// AFIFO (?)
-	afifo #(
+	sata_afifo #(
 		// Just need enough of a FIFO to cross clock domains, no more
 		.WIDTH(1+$clog2(DW/8)+DW), .LGFIFO(LGAFIFO)
 	) u_tx_afifo (

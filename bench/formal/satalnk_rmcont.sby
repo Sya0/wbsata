@@ -1,0 +1,22 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+cvr: mode cover
+
+[engines]
+smtbmc
+
+[script]
+read -formal satalnk_rmcont.v
+--pycode-begin--
+cmd = "hierarchy -top satalnk_rmcont"
+output(cmd)
+--pycode-end--
+prep -top satalnk_rmcont
+
+[files]
+../../rtl/sata_primitives.vh
+../../rtl/satalnk_rmcont.v

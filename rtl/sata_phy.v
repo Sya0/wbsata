@@ -60,11 +60,12 @@ module	sata_phy #(
 		// External reference clock
 		input	wire		i_ref_sata_clk,
 		//
+		input	wire		i_user_reset,
 		output	wire		o_ready, o_init_err,
 		// Wishbone DRP Control
 		// {{{
 		input	wire		i_wb_cyc, i_wb_stb, i_wb_we,
-		input	wire	[8:0]	i_wb_addr,
+		input	wire	[9:0]	i_wb_addr,
 		input	wire	[31:0]	i_wb_data,
 		input	wire	[3:0]	i_wb_sel,
 		output	wire		o_wb_stall,
@@ -103,8 +104,10 @@ module	sata_phy #(
 		// Connections to external pads
 		// {{{
 		output	wire		o_tx_p, o_tx_n,
-		input	wire		i_rx_p, i_rx_n
+		input	wire		i_rx_p, i_rx_n,
 		// }}}
+		output	wire		o_refclk,
+		output	wire	[31:0]	o_debug
 		// }}}
 	);
 
@@ -118,7 +121,13 @@ module	sata_phy #(
 	wire	[63:0]	raw_rx_data;
 	wire	[7:0]	rx_char_is_k, rx_invalid_code, rx_disparity_err;
 	reg		qpll_reset;
-	reg	[4:0]	qpll_reset_count;
+	reg	[6:0]	qpll_reset_count;
+	wire	[31:0]	tx_debug, rx_debug;
+	wire	[6:0]	pll_debug;
+
+	// Verilator lint_off UNUSED
+	wire	w_rx_refclk, w_tx_refclk;
+	// Verilator lint_on  UNUSED
 
 	assign	rx_polarity = 1'b0;
 	assign	tx_polarity = 1'b0;	// Normal polarity
@@ -149,7 +158,7 @@ module	sata_phy #(
 	// Step 9. Now ready for data
 
 	wire	rx_clk_unbuffered, qpll_clk, qpll_refck;
-	wire	rx_pll_reset, rx_gtx_reset, rx_reset_done,
+	wire	ign_rx_pll_reset, rx_gtx_reset, rx_reset_done,
 		rx_cdr_lock, rx_aligned, rx_user_ready, rx_watchdog_err,
 		rx_ready, rx_align_done;
 	reg	last_rx_align_done, rx_align_done_ck, rx_align_done_pipe;
@@ -165,7 +174,7 @@ module	sata_phy #(
 	initial	qpll_reset = 1'b1;
 	initial	qpll_reset_count = -1;
 	always @(posedge i_wb_clk)
-	if (i_reset)
+	if (i_reset || i_user_reset)
 	begin
 		qpll_reset <= 1'b1;
 		qpll_reset_count <= -1;
@@ -176,21 +185,24 @@ module	sata_phy #(
 	end
 	// }}}
 
-	sata_phyinit #(
-		.OPT_WAIT_ON_ALIGN(1'b0)
-	) rx_init (
+	sata_phyinit
+	rx_init (
 		// {{{
 		.i_clk(i_wb_clk),
-		.i_reset(i_reset || qpll_reset || (!pll_locked && USE_QPLL)),
-		.i_power_down(1'b0), // power_down),
-		.o_pll_reset(rx_pll_reset),
-		.i_pll_locked(pll_locked || !USE_QPLL),
+		.i_reset(i_reset || i_user_reset || qpll_reset),
+		.i_power_down(1'b0),
+		.o_pll_reset(ign_rx_pll_reset),
+		.i_pll_locked(pll_locked || !USE_QPLL), // && tx_pll_lock),
+		//
 		.o_gtx_reset(rx_gtx_reset),
-		.i_gtx_reset_done(rx_reset_done),
-		.i_aligned(rx_aligned),
+		.i_gtx_reset_done(rx_reset_done && tx_pll_lock),
+		//
+		.i_phy_clk(o_rx_clk),
+		//
 		.o_err(rx_watchdog_err),
 		.o_user_ready(rx_user_ready),
-		.o_complete(rx_ready)
+		.o_complete(rx_ready),
+		.o_debug(rx_debug)
 		// }}}
 	);
 
@@ -252,26 +264,33 @@ module	sata_phy #(
 	end
 	*/
 
-	sata_phyinit #(
-		.OPT_WAIT_ON_ALIGN(1'b0)
-	) tx_init (
+	sata_phyinit
+	tx_init (
 		// {{{
 		.i_clk(i_wb_clk),
-		.i_reset(i_reset || (!pll_locked && USE_QPLL)),
+		.i_reset(i_reset || i_user_reset),
 		.i_power_down(1'b0), // power_down),
 		.o_pll_reset(tx_pll_reset),
 		.i_pll_locked(pll_locked || !USE_QPLL),
 		.o_gtx_reset(tx_gtx_reset),
 		.i_gtx_reset_done(tx_reset_done && tx_pll_lock),
-		.i_aligned(1'b1),	// We don't wait for TX alignment
+		.i_phy_clk(o_tx_clk),
 		.o_err(tx_watchdog_err),
 		.o_user_ready(tx_user_ready),
-		.o_complete(o_tx_ready)
+		.o_complete(o_tx_ready),
+		.o_debug(tx_debug)
 		// }}}
 	);
 
 	assign	o_init_err = rx_watchdog_err || tx_watchdog_err;
 	assign	o_ready = rx_ready && o_tx_ready;
+
+	assign	o_debug = rx_debug
+		| ({ 25'h0, pll_debug } << 26)
+		// | ({ 29'h0, tx_watchdog_err, tx_user_ready, o_tx_ready } << 23)
+		| ({ 29'h0, i_rx_cdrhold, tx_user_ready, o_tx_ready } << 23)
+		// .RXCDRHOLD(0 && (!rx_gtx_reset && !rx_cdr_gtx_reset) && i_rx_cdrhold),	// i_rx_cdrhold
+		| ({ 28'h0, tx_debug[3:0] } << 27);
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -281,50 +300,63 @@ module	sata_phy #(
 	//
 	//
 	wire		i_drp_clk;
-	wire		i_drp_enable, i_drp_we;
-	wire	[8:0]	i_drp_addr;
-	wire	[15:0]	i_drp_data, o_drp_data;
-	wire		o_drp_ready;
+	wire		i_drp_enable, i_drp_we, gtx_drp_enable, pll_drp_enable;
+	wire	[9:0]	i_drp_addr;
+	wire	[15:0]	i_drp_data, pll_drp_data, gtx_drp_data;
+	wire		gtx_drp_ready, pll_drp_ready;
 	reg		pending_ack, drop_wb_ack;
 
 	assign	i_drp_clk    = i_wb_clk;
 	assign	i_drp_data   = i_wb_data[15:0];
-	assign	i_drp_enable = (i_wb_stb && !o_wb_stall && (&i_wb_sel[1:0]));
+	assign	i_drp_enable = (i_wb_stb && !o_wb_stall && (&i_wb_sel[1:0]))
+				&& !i_user_reset;
 	assign	i_drp_we     = i_drp_enable && i_wb_we;
-	assign	o_wb_stall   = !pending_ack;
+	assign	o_wb_stall   = pending_ack;
 	assign	i_drp_addr   = i_wb_addr[8:0];
+	assign	pll_drp_enable = i_drp_enable && !i_wb_addr[9];
+	assign	gtx_drp_enable = i_drp_enable &&  i_wb_addr[9];
 	// assign	o_wb_data    = { 16'h0, o_drp_data };
 	// assign	o_wb_ack     = o_drp_ready;
 
 	initial	pending_ack = 1'b0;
 	always @(posedge i_drp_clk)
-	if (i_reset)
+	if (i_reset || i_user_reset)
 		pending_ack <= 1'b0;
 	else if (pending_ack)
-		pending_ack <= !o_drp_ready;
+		pending_ack <= !pll_drp_ready && !gtx_drp_ready;
 	else if (i_wb_stb && !o_wb_stall)
 		pending_ack <= (&i_wb_sel[1:0]);
 
 	initial	drop_wb_ack = 1'b0;
 	always @(posedge i_drp_clk)
-	if (i_reset)
+	if (i_reset || i_user_reset)
 		drop_wb_ack <= 1'b0;
-	else if (o_drp_ready)
+	else if (pll_drp_ready || gtx_drp_ready)
 		drop_wb_ack <= 1'b0;
 	else if (pending_ack && !i_wb_cyc)
 		drop_wb_ack <= 1'b1;
+	else if (!pending_ack)
+		drop_wb_ack <= 1'b0;
 
 	initial	o_wb_ack = 1'b0;
 	always @(posedge i_drp_clk)
 	if (i_reset || !i_wb_cyc)
 		o_wb_ack <= 1'b0;
+	else if (pending_ack && i_user_reset)
+		o_wb_ack <= 1'b1;
 	else if (pending_ack)
-		o_wb_ack <= o_drp_ready && !drop_wb_ack;
+		o_wb_ack <= (pll_drp_ready || gtx_drp_ready) && !drop_wb_ack;
 	else
-		o_wb_ack <= i_wb_stb && (i_wb_sel[1:0] != 2'b11);
+		o_wb_ack <= !i_drp_enable;
 
 	always @(posedge i_drp_clk)
-		o_wb_data <= { 16'h0, o_drp_data };
+	begin
+		o_wb_data <= 32'h0;
+		if (gtx_drp_ready)
+			o_wb_data <= { 16'h0, gtx_drp_data };
+		if (pll_drp_ready)
+			o_wb_data <= { 16'h0, pll_drp_data };
+	end
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -402,7 +434,7 @@ module	sata_phy #(
 	generate if (REFCLK_FREQUENCY == 150)
 	begin : GEN_QPLL
 		// {{{
-		wire	qpll_lock, pll_reset;
+		wire	qpll_lock, pll_reset, qpll_refck_lost;
 
 		GTXE2_COMMON #(
 			// {{{
@@ -436,16 +468,26 @@ module	sata_phy #(
 			//
 			.BIAS_CFG			(64'h0000_0400_0000_1000),
 			.COMMON_CFG			(32'h0),
-			.QPLL_CFG			(27'h06801C1),
-			.QPLL_CLKOUT_CFG		(4'b0000),
-			.QPLL_COARSE_FREQ_OVRD		(6'b010000),
+			.QPLL_CFG			(27'h068_01C1),
+			.QPLL_COARSE_FREQ_OVRD		(6'b01_0000),
 			.QPLL_COARSE_FREQ_OVRD_EN	(1'b0),
 			.QPLL_CP			(10'h1f),
 			.QPLL_CP_MONITOR_EN		(1'b0),
 			.QPLL_DMONITOR_SEL		(1'b0),
 			.QPLL_INIT_CFG			(24'h6),
+			.QPLL_CLKOUT_CFG		(4'b0000),
+			// The following are Xilinx's recommended settings
+			// {{{
 			.QPLL_LOCK_CFG			(16'h21E8),
 			.QPLL_LPF			(4'hf)
+			// These settings have not worked.
+			// }}}
+			// The following settings *work* (for tx ...), but are
+			// not the recommend settings
+			// {{{
+			// .QPLL_LOCK_CFG			(16'h05e8),
+			// .QPLL_LPF			(4'hd)
+			// }}}
 			// }}}
 		) u_gtxclk (
 			// {{{
@@ -463,12 +505,12 @@ module	sata_phy #(
 			// DRP
 			// {{{
 			.DRPCLK(i_wb_clk),
-			.DRPEN(1'b0),
-			.DRPWE(1'b0),
-			.DRPADDR(8'h0),
-			.DRPDI(16'h0),
-			.DRPDO(),
-			.DRPRDY(),
+			.DRPEN(pll_drp_enable),
+			.DRPWE(i_drp_we),
+			.DRPADDR(i_drp_addr[7:0]),
+			.DRPDI(i_drp_data[15:0]),
+			.DRPDO(pll_drp_data[15:0]),
+			.DRPRDY(pll_drp_ready),
 			// }}}
 			// Unused
 			// {{{
@@ -480,7 +522,7 @@ module	sata_phy #(
 			.GTNORTHREFCLK1(1'b0),
 			.GTSOUTHREFCLK0(1'b0),
 			.GTSOUTHREFCLK1(1'b0),
-			.QPLLREFCLKLOST(),	// Output, indicates reference clk lost
+			.QPLLREFCLKLOST(qpll_refck_lost),	// Output, indicates reference clk lost
 			// Reserved
 			.QPLLRSVD1(16'h0),
 			.QPLLRSVD2(5'h1f),
@@ -498,6 +540,7 @@ module	sata_phy #(
 
 		assign	pll_locked = qpll_lock;
 		assign	cpll_reset = 1'b1;
+		assign	pll_debug = { 6'h0, qpll_refck_lost };
 		// }}}
 	end else begin : NO_QPLL
 
@@ -505,6 +548,7 @@ module	sata_phy #(
 		assign	qpll_refck = 1'b0;
 		assign	pll_locked = cpll_locked;
 		assign	cpll_reset = i_reset;
+		assign	pll_debug = 7'h0;
 	end endgenerate
 
 	GTXE2_CHANNEL #(
@@ -643,10 +687,10 @@ module	sata_phy #(
 		.ALIGN_COMMA_WORD(4),	// Comma appears on byte zero *ONLY*
 		// PCOMMA: The first comma pattern in a potential pair
 		.ALIGN_PCOMMA_DET(OPT_AUTO_ALIGN ? "TRUE" : "FALSE"),	// 1st comma in (potential) pair
-		.ALIGN_PCOMMA_VALUE(10'b01_0111_1100),	// 1st comma pattern
+		.ALIGN_PCOMMA_VALUE(10'b01_0111_1100),	// 1st comma pattern (K28.5)
 		// MCOMMA: The second comma pattern in a potential pair
-		.ALIGN_MCOMMA_DET(OPT_AUTO_ALIGN ? "TRUE" : "FALSE"),	// 2nd comma in potential pair
-		.ALIGN_MCOMMA_VALUE(10'b10_1000_0011),
+		.ALIGN_MCOMMA_DET("FALSE"), // OPT_AUTO_ALIGN ? "TRUE" : "FALSE"),	// 2nd comma in potential pair
+		.ALIGN_MCOMMA_VALUE(10'b10_1000_0011), // (Unused w/o double comma)
 		//
 		.SHOW_REALIGN_COMMA(OPT_AUTO_ALIGN ? "TRUE" : "FALSE"),
 		//
@@ -843,7 +887,7 @@ module	sata_phy #(
 		// [6:4] to be set to 3'b100
 		// [3] 1'b0 selects sysclk, 1'b1 selects port CLKRSVD
 		// We match GTX wizard in all but bit 8
-		.PCS_RSVD_ATTR(48'h100),		// Reserved	// !!!!
+		.PCS_RSVD_ATTR(48'h100),		// Reserved
 		.PMA_RSV4(32'h00000000),
 		.SIM_RECEIVER_DETECT_PASS("TRUE"),
 		.SIM_RESET_SPEEDUP("FALSE"),
@@ -922,7 +966,7 @@ module	sata_phy #(
 		.CPLLPD(power_down),	// Keep powered up
 		.RXPD(power_down ? 2'b11 : 2'b00),	// Rx power down
 		.TXPD(power_down ? 2'b11 : 2'b00),	// Tx power down
-		.TXPDELECIDLEMODE(1'b0), // Power down on async input (always 0)
+		.TXPDELECIDLEMODE(1'b1), // Power down on async input (always 0)
 		.RXPHDLYPD(power_down && OPT_RXBUFFER),
 		.TXPHDLYPD(power_down && OPT_TXBUFFER),
 		// }}}
@@ -939,7 +983,7 @@ module	sata_phy #(
 		// inputs
 		.RXCOMMADETEN(OPT_AUTO_ALIGN),	// Detect alignment primitives
 		// Which commas should we align on?
-		.RXMCOMMAALIGNEN(i_realign && OPT_AUTO_ALIGN), // M commas
+		.RXMCOMMAALIGNEN(0 && i_realign && OPT_AUTO_ALIGN), // M commas
 		.RXPCOMMAALIGNEN(i_realign && OPT_AUTO_ALIGN), // P commas too
 		.RXSLIDE(1'b0),	// No manual comma alignment
 		// outputs
@@ -951,15 +995,20 @@ module	sata_phy #(
 		// {{{
 		(* invertible_pin = "IS_DRPCLK_INVERTED" *)
 		.DRPCLK(i_drp_clk),
-		.DRPRDY(o_drp_ready),
+		.DRPRDY(gtx_drp_ready),
 		.DRPADDR(i_drp_addr),
 		.DRPDI(i_drp_data[15:0]),
-		.DRPEN(i_drp_enable),
+		.DRPEN(gtx_drp_enable),
 		.DRPWE(i_drp_we),
-		.DRPDO(o_drp_data),
+		.DRPDO(gtx_drp_data),
 		// }}}
 		// Digital monitor
 		// {{{
+		// OOB clock must run <= line rate / (3 * runlength)
+		//	= 1500 Mbps / 3 * runlength <= 500 / runlength
+		//	(But ... what is the runlength?  40?)
+		//	TX Clk is running at 37MHz, so ... this is *not* less
+		//	than 500 / 40.  It is less than 500 / 10.
 		.CLKRSVD(4'h0),
 		.PCSRSVDIN(16'h0),	// Not really using this
 		.DMONITOROUT(),		// Unused, no connect
@@ -1018,8 +1067,8 @@ module	sata_phy #(
 		// }}}
 		// RX Fabric clock output control ports
 		// {{{
-		.RXOUTCLKSEL(3'b010),	// Use the RXOUTCLKPMA path
-		.RXOUTCLKFABRIC(),	// Unused // no connect
+		.RXOUTCLKSEL(3'b010),	// Use the RXOUTCLKPMA path, less delay
+		.RXOUTCLKFABRIC(w_rx_refclk),	// Unused // no connect
 		.RXOUTCLK(rx_clk_unbuffered),
 		.RXOUTCLKPCS(),
 		.RXRATEDONE(),		// Unused, since we never change rates
@@ -1107,8 +1156,8 @@ module	sata_phy #(
 		// {{{
 		// Transmit data
 		// {{{
-		.TXCHARDISPMODE(8'h0),	// When 8B10B disabled
-		.TXCHARDISPVAL(8'h0),	// When 8B10B disabled
+		.TXCHARDISPMODE(8'h0),	// Only used when 8B10B disabled
+		.TXCHARDISPVAL(8'h0),	// Only used when 8B10B disabled
 		.TXDATA({ 32'h0,
 			i_tx_data[ 7: 0], i_tx_data[15: 8],
 			i_tx_data[23:16], i_tx_data[31:24]
@@ -1156,7 +1205,7 @@ module	sata_phy #(
 		.TXOUTCLKSEL(3'b001),
 		// Divide by 2, 4, or 8 -- see mapping
 		.TXRATE(3'h0), // (SATA_GEN==3) ? 3'd2 : (SATA_GEN==2) ? 3'd3 : 3'd4),
-		.TXOUTCLKFABRIC(),	// Redundant, used by Xilinx for testing
+		.TXOUTCLKFABRIC(w_tx_refclk),	// Redundant, used by Xilinx for testing
 		// QPLL_REFCK speed (6.6666ns => 150MHz)
 		// At ... QPLL_CLK speed (0.1670 =~> 6GHz)
 		//		/ 4 (b/c of TX_INT_DATA_WIDTH = 1)
@@ -1240,8 +1289,10 @@ module	sata_phy #(
 
 `ifdef	IVERILOG
 	assign	o_rx_clk = rx_clk_unbuffered;
+	assign	o_refclk = w_rx_refclk;
 `else
 	BUFG rxbuf ( .I(rx_clk_unbuffered), .O(o_rx_clk));
+	BUFG refbuf ( .I(w_rx_refclk), .O(o_refclk));
 `endif
 
 	generate if (OPT_TXBUFFER)
@@ -1250,21 +1301,22 @@ module	sata_phy #(
 		assign	o_tx_clk = raw_tx_clk;
 `else
 		wire		mmcm_feedback_unbuffered,
-				mmcm_feedback, tx_unbuffered;
+				mmcm_feedback, tx_unbuffered, buf_tx_clk;
 
 		// The MMCM
 		// {{{
-		/*
-		PLLE2_BASE #(
-			.CLKFBOUT_MULT(32),	// 37.5 * 24 = 900MHz
+		// PLLE2_BASE
+		MMCME2_BASE
+		#(
+			.CLKFBOUT_MULT_F(32.0),	// 37.5 * 24 = 900MHz
 			.DIVCLK_DIVIDE(1),
 			.CLKIN1_PERIOD(26.66),	// 37.5MHz
-			.CLKOUT_DIVIDE(1),
-			.CLKOUT0_DIVIDE(32)
+			.CLKOUT0_DIVIDE_F(32.0)
 		) u_txmmcm (
-			.CLKIN1(raw_tx_clk),
+			.CLKIN1(buf_tx_clk),
 			//
 			.CLKFBOUT(mmcm_feedback_unbuffered),
+			// .CLKFBOUTB(mmcm_feedback_unbuffered_n),
 			.CLKFBIN(mmcm_feedback),
 			//
 			.CLKOUT0(tx_unbuffered),
@@ -1272,20 +1324,26 @@ module	sata_phy #(
 			.RST(tx_gtx_reset),
 			.LOCKED(tx_pll_lock)
 		);
-		*/
-		assign	tx_pll_lock = pll_locked;
-		assign	tx_unbuffered = raw_tx_clk;
+		// assign	tx_pll_lock = pll_locked;
+		// assign	tx_unbuffered = raw_tx_clk;
+		// }}}
+
+		// raw_tx_clk BUFG
+		// {{{
+		BUFH
+		raw_tx_buf (
+			.I(raw_tx_clk),
+			.O(buf_tx_clk)
+		);
 		// }}}
 
 		// mmcm_feedback BUFG
 		// {{{
-		/*
 		BUFG
 		feedback(
 			.I(mmcm_feedback_unbuffered),
 			.O(mmcm_feedback)
 		);
-		*/
 		// }}}
 
 		// Final TX BUFG

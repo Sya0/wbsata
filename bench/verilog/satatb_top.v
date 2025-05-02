@@ -67,11 +67,11 @@ module	satatb_top;
 	//	SCOPE_LINK_ADDR   = { 6'b011001,{(ADDRESS_WIDTH-6){1'b0}} },
 	//	SCOPE_RESET_ADDR  = { 6'b011010,{(ADDRESS_WIDTH-6){1'b0}} };
 	localparam [ADDRESS_WIDTH-1:0]
-			MEM_MASK  = { 1'b1,    {(ADDRESS_WIDTH-1){1'b0}} },
-			ZDBG_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
-			CONS_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
-			SATA_MASK = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} },
-			DRP_MASK  = { 4'b1111, {(ADDRESS_WIDTH-4){1'b0}} };
+			MEM_MASK  = { 1'b1,    {(ADDRESS_WIDTH- 1){1'b0}} },
+			ZDBG_MASK = { 4'b1111, {(ADDRESS_WIDTH-11){1'b1}}, 7'h0 },
+			CONS_MASK = { 4'b1111, {(ADDRESS_WIDTH- 4){1'b0}} },
+			SATA_MASK = { 4'b1111, {(ADDRESS_WIDTH- 9){1'b1}}, 5'h0 },
+			DRP_MASK  = { 4'b1111, {(ADDRESS_WIDTH-16){1'b1}}, 12'h0, };
 	//	SCOPE_TRAN_MASK   = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} },
 	//	SCOPE_LINK_MASK   = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} },
 	//	SCOPE_RESET_MASK  = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} };
@@ -110,6 +110,8 @@ module	satatb_top;
 	wire	[AW-1:0]	zip_addr;
 	wire	[DW-1:0]	zip_data, zip_idata;
 	wire	[DW/8-1:0]	zip_sel;
+
+	wire			zip_halted;
 	// }}}
 
 	// Control connections
@@ -122,7 +124,7 @@ module	satatb_top;
 	wire	[AW-1:0]		sata_ctrlw_addr;
 	wire	[DW-1:0]	sata_ctrlw_data, sata_ctrlw_idata;
 	wire	[DW/8-1:0]	sata_ctrlw_sel;
-	wire		w_link_up, w_link_ready;
+	wire			w_link_ready;
 
 	wire			sata_ctrl_cyc, sata_ctrl_stb, sata_ctrl_we,
 				sata_ctrl_stall, sata_ctrl_ack, sata_ctrl_err;
@@ -143,7 +145,7 @@ module	satatb_top;
 
 	wire			drp_cyc,  drp_stb;
 	wire			drp_we,   drp_stall, drp_ack, drp_err;
-	wire	[9-1:0]		drp_addr;
+	wire	[10-1:0]	drp_addr;
 	wire	[32-1:0]	drp_data, drp_idata;
 	wire	[32/8-1:0]	drp_sel;
 	// }}}
@@ -378,6 +380,8 @@ module	satatb_top;
 		assign	zdbgw_stall = 1'b0;
 		assign	zdbgw_ack   = zdbgw_stb && !zdbgw_stall;
 		assign	zdbgw_idata = {(DW){1'b0}};
+
+		assign	zip_halted = 1'b0;
 	end endgenerate
 
 	// }}}
@@ -466,6 +470,8 @@ module	satatb_top;
 	//
 	// SATA Device Under Test (DUT)
 	// {{{
+	(* keep *)	wire		w_ref_monitor;
+	(* keep *)	wire	[31:0]	w_phy_debug;
 
 	wbdown #(
 		.ADDRESS_WIDTH(CTRL_ADDRESS_WIDTH),
@@ -546,7 +552,7 @@ module	satatb_top;
 	);
 
 	wbdown #(
-		.ADDRESS_WIDTH(11),
+		.ADDRESS_WIDTH(12),
 		.WIDE_DW(DW), .SMALL_DW(32)
 	) u_drp_down (
 		// {{{
@@ -613,8 +619,9 @@ module	satatb_top;
 		// I/O pad connections
 		// {{{
 		.o_tx_p(sata_tx_p), .o_tx_n(sata_tx_n),
-		.i_rx_p(sata_rx_p), .i_rx_n(sata_rx_n)
+		.i_rx_p(sata_rx_p), .i_rx_n(sata_rx_n),
 		// }}}
+		.o_refclk(w_ref_monitor), .o_debug(w_phy_debug)
 		// }}}
 	);
 

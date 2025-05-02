@@ -253,11 +253,8 @@ module	sata_reset #(
 			if (ck_phy_ready) begin
 				fsm_state <= HR_ISSUE_COMINIT;
 				o_tx_cominit  <= 1'b1;
-				// cominit_cnt	<= cominit_cnt + 1;
-				// if (cominit_cnt == 7'h51)
-				// 	fsm_state <= HR_ISSUE_COMINIT;
-			end
-		end
+				// o_tx_elecidle <= 1'b0;
+			end end
 		HR_ISSUE_COMINIT: begin
 			// {{{
 			// Issue COMRESET, and wait for the PHY (not the device
@@ -462,7 +459,7 @@ module	sata_reset #(
 		if (i_tx_data == P_R_ERR[31:0])  pdecode = pdecode | 13;
 		if (i_tx_data == P_WTRM[31:0])   pdecode = pdecode | 14;
 
-		if (!i_tx_primitive)
+		if (!i_tx_primitive || o_tx_elecidle)
 			pdecode = 4'hf;
 	end
 
@@ -476,7 +473,7 @@ module	sata_reset #(
 		o_debug[23] <= o_phy_primitive;
 		o_debug[22] <= o_link_up;
 		o_debug[21:18] <= pdecode;
-		o_debug[17] <= i_tx_primitive;
+		o_debug[17] <= i_tx_primitive && !o_tx_elecidle;
 		o_debug[16] <= o_tx_ready;
 		o_debug[15] <= o_tx_elecidle;
 		o_debug[14] <= o_tx_cominit;

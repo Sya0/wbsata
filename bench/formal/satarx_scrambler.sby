@@ -1,0 +1,25 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+cvr: mode cover
+
+[engines]
+smtbmc
+
+[script]
+read -formal faxin_slave.v
+read -formal faxin_master.v
+read -formal satarx_scrambler.v
+--pycode-begin--
+cmd = "hierarchy -top satarx_scrambler"
+output(cmd)
+--pycode-end--
+prep -top satarx_scrambler
+
+[files]
+../../rtl/satarx_scrambler.v
+faxin_slave.v
+faxin_master.v

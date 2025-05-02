@@ -1,0 +1,22 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+prf: depth 5
+cvr: mode cover
+
+[engines]
+smtbmc
+
+[script]
+read -formal satatrn_txarb.v
+--pycode-begin--
+cmd = "hierarchy -top satatrn_txarb"
+output(cmd)
+--pycode-end--
+prep -top satatrn_txarb
+
+[files]
+../../rtl/satatrn_txarb.v

@@ -1,0 +1,22 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove		# Can take 5hrs on my desktop
+prf: depth 4
+cvr: mode cover
+
+[engines]
+smtbmc
+
+[script]
+read -formal satarx_framer.v
+--pycode-begin--
+cmd = "hierarchy -top satarx_framer"
+output(cmd)
+--pycode-end--
+prep -top satarx_framer
+
+[files]
+../../rtl/satarx_framer.v

@@ -1,0 +1,22 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+prf: depth 5
+cvr: mode cover
+
+[engines]
+smtbmc
+
+[script]
+read -formal satatx_crc.v
+--pycode-begin--
+cmd = "hierarchy -top satatx_crc"
+output(cmd)
+--pycode-end--
+prep -top satatx_crc
+
+[files]
+../../rtl/satatx_crc.v

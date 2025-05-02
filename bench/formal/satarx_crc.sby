@@ -1,0 +1,28 @@
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+prf: depth 5
+cvr: mode cover
+cvr: depth 40
+
+[engines]
+smtbmc
+
+[script]
+read -define RXCRC
+read -formal satarx_crc.v
+read -formal faxin_master.v
+read -formal faxin_slave.v
+--pycode-begin--
+cmd = "hierarchy -top satarx_crc"
+output(cmd)
+--pycode-end--
+prep -top satarx_crc
+
+[files]
+faxin_master.v
+faxin_slave.v
+../../rtl/satarx_crc.v

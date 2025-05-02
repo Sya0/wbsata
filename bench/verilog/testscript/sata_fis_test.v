@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename:	bench/verilog/testscript/setdatetime.v
+// Filename:	bench/verilog/testscript/sata_fis_test.v
 // {{{
 // Project:	A Wishbone SATA controller
 //

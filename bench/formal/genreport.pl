@@ -13,7 +13,7 @@
 ##
 ################################################################################
 ## }}}
-## Copyright (C) 2023-2024, Gisselquist Technology, LLC
+## Copyright (C) 2023-2025, Gisselquist Technology, LLC
 ## {{{
 ## This file is part of the WBSATA project.
 ##
@@ -44,16 +44,90 @@
 $dir = ".";
 @proofs = (
 	"sata_crc",
+	"satatx_crc",
+	"satarx_crc",
 	"sata_framer",
+	"satarx_framer",
+	"satatx_framer",
 	"sata_scrambler",
-	"satatb_bwrap"
+	"satarx_scrambler",
+	"satatx_scrambler",
+	"satalnk_align",
+	"satalnk_rmcont",
+	"satatb_bwrap",
+	"sata_pextend",
+	"satatrn_wbarbiter",
+	"satatrn_txarb",
+	"satatrn_rxregfis",
+	"satadma_mm2s",
+	"satadma_s2mm",
+	"satadma_rxgears",
+	"satadma_txgears",
+	"sata_afifo",
+	"sata_sfifo",
+	"sata_skid"
+	## These may get formally verified at a later date:
+	## ============================================================
+	## sata_reset,
+	## satalnk_fsm,
+	## satatrn_fsm
+	##
+	## Contains vendor macro black boxes:
+	## ============================================================
+	## sata_phy
+	## ==> With no open Verilog model, cannot be formally verified
+	##
+	## Not leaf modules:
+	## ============================================================
+	## sata_phyinit,
+	## satalnk_rxpacket
+	## satalnk_txpacket
+	## sata_controller
+	## sata_link
+	## sata_transport
+	## ==> therefore not formally verified
 	);
 
 %desc = (
 	"sata_crc"		=> "SATA CRC",
+	"satatx_crc"		=> "SATA TX CRC Insertion",
+	"satarx_crc"		=> "SATA RX CRC Checking",
 	"sata_framer"		=> "SATA Framer",
+	"satarx_framer"		=> "SATA RX Frame recovery",
+	"satatx_framer"		=> "SATA TX Frame generator",
 	"sata_scrambler"	=> "SATA Scrambler",
-	"satatb_bwrap"		=> "SATA 8B/10B encoder, 10B/8B decoder"
+	"satarx_scrambler"	=> "SATA Scrambler (Receive side only)",
+	"satatx_scrambler"	=> "SATA Scrambler (Transmit side)",
+	"satatb_bwrap"		=> "SATA 8B/10B encoder, 10B/8B decoder",
+	"satalnk_align"		=> "SATA TX P_ALIGN/P_CONT Insertion",
+	"satalnk_rmcont"	=> "SATA RX P_ALIGN/P_CONT Removal",
+	"sata_pextend"		=> "Pulse extender",
+	"satatrn_wbarbiter"	=> "Internal Wishbone arbiter",
+	"satatrn_txarb"		=> "Data/Reg transmit arbiter",
+	"satatrn_rxregfis"	=> "Data/Reg receive arbiter",
+	##
+	"satadma_mm2s"		=> "SATA DMA from memory",
+	"satadma_s2mm"		=> "SATA DMA to memory",
+	"satadma_rxgears"	=> "SATA DMA RX Gearbox",
+	"satadma_txgears"	=> "SATA DMA TX Gearbox",
+	"sata_afifo"		=> "Asynchronous FIFO",
+	"sata_sfifo"		=> "Synchronous FIFO",
+	"sata_skid"		=> "Skidbuffer"
+	## satalnk_fsm
+	## sata_reset
+	## satatrn_fsm
+	##
+	## Contain vendor macro black boxes:
+	## sata_phy
+	##
+	## Not leaf modules:
+	## =================
+	## sata_phyinit
+	## satalnk_rxpacket
+	## satalnk_txpacket
+	## sata_controller
+	## sata_link
+	## sata_transport
 	);
 ## }}}
 
@@ -117,10 +191,8 @@ sub getstatus($) {
 				$bmc = $1;
 				# print "<TR><TD>basecase $bmc match</TD></TR>\n";
 			}
-		} if ($line =~ /engine_\d:.*Writing trace to VCD.*trace(\d+).vcd/) {
-			if ($1 > $ncvr) {
-				$ncvr = $1+1;
-			}
+		} if ($line =~ /engine_\d:.*Reached cover statement/) {
+			$ncvr = $ncvr+1;
 		}
 	}
 	close(LOG);
@@ -149,10 +221,18 @@ sub getstatus($) {
 
 ## Start the HTML output
 ## {{{
+## Grab a timestamp
+$now = time;
+($sc,$mn,$nhr,$ndy,$nmo,$nyr,$nwday,$nyday,$nisdst) = localtime($now);
+$nyr = $nyr+1900; $nmo = $nmo+1;
+$tstamp = sprintf("%04d%02d%02d",$nyr,$nmo,$ndy);
+
 print <<"EOM";
 <HTML><HEAD><TITLE>Formal Verification Report</TITLE></HEAD>
 <BODY>
-<TABLE border>
+<H1 align=center>SATA Controller Formal Verification Report</H1>
+<H2 align=center>$tstamp</H2>
+<TABLE border align=center>
 <TR><TH>Status</TH><TH>Component</TD><TH>Proof</TH><TH>Component description</TH></TR>
 EOM
 ## }}}
@@ -174,7 +254,7 @@ foreach $prf (sort @proofs) {
 	foreach $dent (@dirent) {
 		next if (! -d $dent);
 		next if ($dent =~ /^\./);
-		next if ($dent !~ /$prf(_\S+)/);
+		next if ($dent !~ /^$prf(_\S+)/);
 			$subprf = $1;
 
 		$ndirs = $ndirs+1;
@@ -190,7 +270,7 @@ foreach $prf (sort @proofs) {
 		# Only look at subdirectories
 		next if (! -d $dent);
 		next if ($dent =~ /^\./);
-		next if ($dent !~ /$prf(_\S+)/);
+		next if ($dent !~ /^$prf(_\S+)/);
 			$subprf = $1;
 		# print("<TR><TD>$dent matches $prf</TD></TR>\n");
 		## }}}
@@ -212,7 +292,12 @@ foreach $prf (sort @proofs) {
 		if ($st =~ /PASS/) {
 			print "<TR><TD bgcolor=#caeec8>Pass$tail";
 		} elsif ($st =~ /Cover\s+(\d+)/) {
+			my $cvr = $1;
+			if ($cvr < 1) {
+			print "<TR><TD bgcolor=#ffffca>$1 Cover points$tail";
+			} else {
 			print "<TR><TD bgcolor=#caeec8>$1 Cover points$tail";
+			}
 		} elsif ($st =~ /FAIL/) {
 			print "<TR><TD bgcolor=#ffa4a4>FAIL$tail";
 		} elsif ($st =~ /Terminated/) {
@@ -221,8 +306,13 @@ foreach $prf (sort @proofs) {
 			print "<TR><TD bgcolor=#ffa4a4>ERROR$tail";
 		} elsif ($st =~ /Out of date/) {
 			print "<TR><TD bgcolor=#ffffca>Out of date$tail";
-		} elsif ($st =~ /BMC\s+(\d)+/) {
-			print "<TR><TD bgcolor=#ffffca>$1 steps of BMC$tail";
+		} elsif ($st =~ /BMC\s+(\d+)/) {
+			my $bmc = $1;
+			if ($bmc < 2) {
+			print "<TR><TD bgcolor=#ffa4a4>$bmc steps of BMC$tail";
+			} else {
+			print "<TR><TD bgcolor=#ffffca>$bmc steps of BMC$tail";
+			}
 		} elsif ($st =~ /No log/) {
 			print "<TR><TD bgcolor=#e5e5e5>No log file found$tail";
 		} else {

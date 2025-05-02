@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename:	rtl/afifo.v
+// Filename:	rtl/sata_afifo.v
 // {{{
 // Project:	A Wishbone SATA controller
 //
@@ -38,7 +38,7 @@
 `default_nettype	none
 `timescale	1ns/1ps
 // }}}
-module afifo #(
+module sata_afifo #(
 		// {{{
 		// LGFIFO is the log based-two of the number of entries
 		//	in the FIFO, log_2(fifo size)
@@ -56,11 +56,14 @@ module afifo #(
 		// to write on the positive edge of the clock.
 		parameter [0:0]	WRITE_ON_POSEDGE = 1'b1,
 		//
-		// Many  logic elements can read from memory asynchronously.
-		// This burdens any following logic.  By setting
-		// OPT_REGISTER_READS, we force all reads to be synchronous and
-		// not burdened by any logic.  You can spare a clock of latency
-		// by clearing this register.
+		// Many logic elements can read from memory asynchronously.
+		// This capability is sometimes known as "Distributed RAM" or
+		// "LUT RAM".  Doing so, however, burdens the timing of any
+		// logic to follow.  By setting OPT_REGISTER_READS, we force
+		// all reads to be synchronous and not burdened by any logic.
+		// This tends to work with more hardware.  If your hardware does
+		// support "Distributed RAM", then you may be able to spare a
+		// clock of latency by clearing this parameter.
 		parameter [0:0]	OPT_REGISTER_READS = 1'b1
 `ifdef	FORMAL
 		// F_OPT_DATA_STB

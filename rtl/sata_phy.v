@@ -966,7 +966,7 @@ module	sata_phy #(
 		.CPLLPD(power_down),	// Keep powered up
 		.RXPD(power_down ? 2'b11 : 2'b00),	// Rx power down
 		.TXPD(power_down ? 2'b11 : 2'b00),	// Tx power down
-		.TXPDELECIDLEMODE(1'b1), // Power down on async input (always 0)
+		.TXPDELECIDLEMODE(1'b0), // Power down on async input (always 0)
 		.RXPHDLYPD(power_down && OPT_RXBUFFER),
 		.TXPHDLYPD(power_down && OPT_TXBUFFER),
 		// }}}

@@ -73,6 +73,8 @@ public:
 	TBCLOCK	m_clk;
 	TBCLOCK	m_rx;
 	TBCLOCK	m_tx;
+	// Tick count to track simulation time
+	unsigned long m_tickcount;
 
 	TESTB(void) {
 		// {{{
@@ -81,11 +83,12 @@ public:
 		m_trace    = NULL;
 		m_done     = false;
 		m_paused_trace = false;
+		m_tickcount = 0;
 		Verilated::traceEverOn(true);
 // Set the initial clock periods in ps
 		m_clk.init(10000);	//  100.00 MHz
 		m_rx.init(26666);	//   37.5  MHz (a little faster)
-		m_tx.init(26667);	//   37.5  MHz (a little slower)
+		m_tx.init(26668);	//   37.5  MHz (a little slower)
 	}
 	// }}}
 

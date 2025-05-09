@@ -51,6 +51,19 @@
 #include "memsim.h"
 #include "byteswap.h"
 
+// Byte swap buffer function - swaps endianness if needed
+void byteswapbuf(unsigned int n, uint32_t *buf) {
+	// Only perform byte swapping if the system is little endian
+	// This is a simple implementation - system-specific optimizations may be needed
+	#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	for(unsigned int i = 0; i < n; i++) {
+		uint32_t v = buf[i];
+		buf[i] = ((v & 0xff) << 24) | ((v & 0xff00) << 8) 
+			   | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24);
+	}
+	#endif
+}
+
 const int	MEMSIM::NWRDWIDTH = 16;
 
 MEMSIM::MEMSIM(const unsigned int nbytes, const unsigned int delay) {

@@ -42,7 +42,9 @@
 `timescale	1ns/1ps
 // }}}
 module	satatb_top;
-// `include "testscript/sata_commands.v"
+`ifndef REGRESSION
+ `include "testscript/sata_commands.v"
+`endif
 	// Local declarations
 	// {{{
 	parameter	ADDRESS_WIDTH = 27;	// Byte address width
@@ -71,7 +73,7 @@ module	satatb_top;
 			ZDBG_MASK = { 4'b1111, {(ADDRESS_WIDTH-11){1'b1}}, 7'h0 },
 			CONS_MASK = { 4'b1111, {(ADDRESS_WIDTH- 4){1'b0}} },
 			SATA_MASK = { 4'b1111, {(ADDRESS_WIDTH- 9){1'b1}}, 5'h0 },
-			DRP_MASK  = { 4'b1111, {(ADDRESS_WIDTH-16){1'b1}}, 12'h0, };
+			DRP_MASK  = { 4'b1111, {(ADDRESS_WIDTH-16){1'b1}}, 12'h0 };
 	//	SCOPE_TRAN_MASK   = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} },
 	//	SCOPE_LINK_MASK   = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} },
 	//	SCOPE_RESET_MASK  = { 6'b111111,{(ADDRESS_WIDTH-6){1'b0}} };
@@ -580,6 +582,7 @@ module	satatb_top;
 		.i_wb_clk(wb_clk), .i_reset(wb_reset),
 		.i_ref_clk200(ref_clk200),
 		.i_ref_sata_clk(sata_ref_ck),
+		.i_user_reset(wb_reset),
 		//
 		.o_ready(sata_phy_ready), .o_init_err(sata_phy_init_err),
 		// DRP interface
@@ -724,11 +727,11 @@ module	satatb_top;
 	// {{{
 	reg	error_flag = 1'b0;
 
-`ifdef	REGRESSION
-`include	`SCRIPT
-`else
-`include	"testscript.v"
-`endif
+//`ifdef	REGRESSION
+//`include	`SCRIPT
+//`else
+//`include	"testscript.v"
+//`endif
 
 	initial	begin
 		error_flag = 1'b0;

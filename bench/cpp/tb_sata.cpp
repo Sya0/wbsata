@@ -393,16 +393,6 @@ int	main(int argc, char **argv) {
 	else
 		printf("TEST SUMMARY: FAILED!\n");
 
-	// // Test the scrambler and CRC functions
-	// printf("\n==== Testing Scrambler and CRC ====\n");
-	
-	// // Test with a DMA Activate FIS
-	// uint32_t dma_act_fis = (0x00 << 24) | (0x00 << 16) | (0x00 << 8) | 0x39; // DMA Activate FIS
-	// printf("Testing DMA Activate FIS (0x%08x):\n", dma_act_fis);
-	// tb.m_sata->debug_fis_scramble_crc(dma_act_fis);
-	
-	// printf("\n==== End of Scrambler/CRC Test ====\n\n");
-
 	tb.wait(10000);
 		
 	return failed ? 1 : 0;

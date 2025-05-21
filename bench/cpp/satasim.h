@@ -172,10 +172,7 @@ public:
 
     // Get current link state
     LinkState get_link_state() const { return m_link_state; }
-    
-    // Debug functions
-    void debug_fis_scramble_crc(uint32_t fis_data);
-    
+
     // Update SATASIM's internal state from controller signals
     void process_tx_signals(bool reset,
                          bool txphy_cominit, 

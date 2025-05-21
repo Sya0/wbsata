@@ -324,13 +324,16 @@ uint32_t SATASIM::scramble_data(uint32_t data, bool init) {
 
 // Helper function equivalent to the advance_crc function in satatx_crc.v
 uint32_t SATASIM::advance_crc(uint32_t prior, uint32_t dword) {
-    uint32_t sreg = prior;
+    volatile uint32_t sreg = prior;
+    volatile uint32_t input = dword;
     
     // Implement the Verilog CRC algorithm
     for (int k = 0; k < 32; k++) {
-        bool bit = (sreg >> 31) & 0x1;
-        bool data_bit = (dword >> (31-k)) & 0x1;
+        // Using volatile variables to prevent optimization issues
+        volatile bool bit = (sreg >> 31) & 0x1;
+        volatile bool data_bit = (input >> (31-k)) & 0x1;
         
+        // printf("CPP DEBUG: bit = %d, data_bit = %d\n", bit, data_bit);
         if (bit ^ data_bit) {
             sreg = ((sreg << 1) ^ CRC_POLYNOMIAL) & 0xFFFFFFFF;
         } else {
@@ -437,9 +440,8 @@ LinkState SATASIM::link_layer_model() {
                         device_sends(s_data, false);
                         data_cnt++;
                     } else if (data_cnt == 2) {
-                        // !!! scramble_data(calculate_crc(swap_endian(dma_act_fis)), false)
-                        s_data = 0xE71B49DA;    // CRC data for the FIS
-                        device_sends(s_data, false);
+                        s_data = swap_endian(scramble_data(calculate_crc(dma_act_fis), false));
+                        printf("DEVICE: CRC data: 0x%08x\n", s_data);
                         data_cnt++;
                     } else if (data_cnt == 3) {
                         m_dma_write = false;
@@ -507,24 +509,4 @@ LinkState SATASIM::link_layer_model() {
     }
 
     return m_link_state;
-}
-
-// Debug function to show scrambling and CRC calculation for a given FIS
-void SATASIM::debug_fis_scramble_crc(uint32_t fis_data) {
-    // Reset the scrambler and CRC state
-    m_scrambler_fill = SCRAMBLER_INITIAL;
-    m_crc = CRC_INITIAL;
-    
-    // Calculate scrambled FIS
-    uint32_t scrambled_fis = swap_endian(scramble_data(fis_data, true));
-    
-    // Calculate CRC
-    uint32_t crc_data = swap_endian(scramble_data(calculate_crc(fis_data), false));
-    
-    // Print results
-    std::cout << "FIS Debug Information:" << std::endl;
-    std::cout << "  Original FIS: 0x" << std::hex << std::setw(8) << std::setfill('0') << fis_data << std::endl;
-    std::cout << "  Scrambled FIS: 0x" << std::hex << std::setw(8) << std::setfill('0') << scrambled_fis << std::endl;
-    std::cout << "  CRC: 0x" << std::hex << std::setw(8) << std::setfill('0') << crc_data << std::endl;
-    std::cout << std::dec;
 }

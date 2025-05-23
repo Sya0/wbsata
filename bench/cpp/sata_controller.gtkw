@@ -1,19 +1,24 @@
 [*]
 [*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
-[*] Tue May 20 10:10:51 2025
+[*] Fri May 23 08:26:24 2025
 [*]
 [dumpfile] "/home/sukru/ZN/Side_Job/sata/wbsata/bench/cpp/trace.vcd"
-[dumpfile_mtime] "Tue May 20 10:10:01 2025"
-[dumpfile_size] 1280024
+[dumpfile_mtime] "Fri May 23 08:24:22 2025"
+[dumpfile_size] 956020
 [savefile] "/home/sukru/ZN/Side_Job/sata/wbsata/bench/cpp/sata_controller.gtkw"
-[timestart] 4600000
+[timestart] 1
 [size] 1920 1123
 [pos] -1 -1
-*-21.033472 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-22.678965 15987465 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] TOP.
 [treeopen] TOP.sata_controller.
+[treeopen] TOP.sata_controller.u_link.
+[treeopen] TOP.sata_controller.u_link.rx_packet.
+[treeopen] TOP.sata_controller.u_link.tx_packet.
+[treeopen] TOP.sata_controller.u_transport.
+[treeopen] TOP.sata_controller.u_transport.u_wbarbiter.
 [sst_width] 276
-[signals_width] 277
+[signals_width] 286
 [sst_expanded] 1
 [sst_vpaned_height] 343
 @800200
@@ -52,9 +57,7 @@ TOP.o_dma_stb
 TOP.o_dma_we
 @22
 TOP.o_dma_sel[3:0]
-@23
 TOP.o_dma_addr[29:0]
-@22
 TOP.o_dma_data[31:0]
 @28
 TOP.i_dma_ack
@@ -62,7 +65,31 @@ TOP.i_dma_err
 TOP.i_dma_stall
 @22
 TOP.i_dma_data[31:0]
+@200
+-
+@800200
+-temp
+@28
+TOP.sata_controller.u_transport.u_mm2s.i_clk
+TOP.sata_controller.u_transport.u_mm2s.o_busy
+TOP.sata_controller.u_transport.u_mm2s.o_err
+TOP.sata_controller.u_transport.u_mm2s.i_rd_err
+@22
+TOP.sata_controller.u_transport.u_mm2s.o_rd_addr[29:0]
+@28
+TOP.sata_controller.u_transport.u_mm2s.r_size[1:0]
+TOP.sata_controller.u_transport.u_mm2s.rdstb_size[2:0]
+@22
+TOP.sata_controller.u_transport.u_mm2s.rdstb_len[11:0]
+TOP.sata_controller.u_transport.u_mm2s.next_addr[32:0]
+@28
+TOP.sata_controller.u_transport.u_mm2s.subaddr[1:0]
+TOP.sata_controller.u_transport.u_mm2s.i_inc
+TOP.sata_controller.u_transport.u_mm2s.r_inc
+TOP.sata_controller.u_transport.u_mm2s.o_rd_stb
+TOP.sata_controller.u_transport.u_mm2s.i_rd_stall
 @1000200
+-temp
 -DMA
 @c00200
 -RX

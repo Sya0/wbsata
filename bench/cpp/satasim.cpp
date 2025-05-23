@@ -33,10 +33,17 @@ SATASIM::SATASIM() {
     // Initialize DMA operations
     m_dma_write = false;
     m_dma_read = false;
+
+    // Initialize PIO operations
+    m_pio_write = false;
+    m_pio_read = false;
     
     // Initialize scrambler and CRC
     m_scrambler_fill = SCRAMBLER_INITIAL;
     m_crc = CRC_INITIAL;
+    
+    // Initialize data buffer
+    reset_data_buffer();
 }
 
 // Destructor
@@ -74,6 +81,23 @@ void SATASIM::reset() {
     // Reset scrambler and CRC state
     m_scrambler_fill = SCRAMBLER_INITIAL;
     m_crc = CRC_INITIAL;
+    
+    // Reset data buffer
+    reset_data_buffer();
+}
+
+// Reset data buffer
+void SATASIM::reset_data_buffer() {
+    memset(m_received_data, 0, sizeof(m_received_data));
+    m_scrambler_fill = SCRAMBLER_INITIAL;
+    m_crc = CRC_INITIAL;
+    m_data_count = 0;
+    m_crc_matched = false;
+    m_data_complete = false;
+    // m_dma_write = false;
+    // m_dma_read = false;
+    // m_pio_write = false;
+    // m_pio_read = false;
 }
 
 // Check if operation is in progress
@@ -145,13 +169,13 @@ bool SATASIM::process_oob() {
         m_rxphy_elecidle = false;
 
         // Start sending ALIGN primitives (on RX clock domain)
-        // device_sends(ALIGN_P, true);
+        // device_phy_sends(ALIGN_P, true);
         // align_cnt++;
 
         // Send SYNC primitive
         // sync_received = wait_for_primitive(SYNC_P);
         // if (sync_received && (align_cnt == 100))
-        //     device_sends(SYNC_P, true);
+        //     device_phy_sends(SYNC_P, true);
     }
 
     return coms_done;
@@ -217,7 +241,7 @@ void SATASIM::process_tx_signals(bool reset,
 }
 
 // Send data or primitive from device to host
-void SATASIM::device_sends(uint32_t data, bool primitive) {
+void SATASIM::device_phy_sends(uint32_t data, bool primitive) {
     // Set the data and primitive signals on RX clock domain
     m_rxphy_valid = true;
     m_rxphy_primitive = primitive;
@@ -244,6 +268,8 @@ bool SATASIM::wait_for_primitive(uint32_t primitive) {
             printf("DEVICE: RRDY received\n");
         else if (primitive == OK_P)
             printf("DEVICE: OK received\n");
+        else if (primitive == ERR_P)
+            printf("DEVICE: ERR received\n");
         else if (primitive == WTRM_P)
             printf("DEVICE: WTRM received\n");
         else if (primitive == R_IP_P)
@@ -261,30 +287,71 @@ bool SATASIM::wait_for_primitive(uint32_t primitive) {
     return primitive_received;
 }
 
-// Wait for a specific command from controller
-void SATASIM::wait_for_command() {
+void SATASIM::device_link_sends(uint32_t data, bool is_last) {
+    uint32_t s_data = 0;
+
+    if (!is_last) {
+        s_data = swap_endian(scramble_data(data));
+        calculate_crc(data);
+    } else {
+        s_data = swap_endian(scramble_data(m_crc));
+    }
+
+    device_phy_sends(s_data, false);
+}
+
+// Receive data from controller
+void SATASIM::device_link_receives() {
     uint32_t fis_type = 0;
     uint32_t cmd_type = 0;
-    uint32_t scrambled_data = 0;
+    uint32_t raw_data = 0;
+    uint32_t expected_crc = 0;
     
     // Extract FIS type from 32-bit data
     if (!m_txphy_primitive) {
-        // Call scramble_data once and store the result
-        scrambled_data = scramble_data(swap_endian(m_txphy_data), false);
-        fis_type = (scrambled_data >> 16) & 0xFF;
-        cmd_type = (scrambled_data & 0xFF);
-        
-        // printf("DEVICE: TX PHY data: 0x%08x\n", m_txphy_data);
-        // printf("DEVICE: TX PHY data scrambled: 0x%08x\n", scrambled_data);
-        // printf("DEVICE: FIS type: %x\n", fis_type);
-    }
-
-    if (fis_type == FIS_TYPE_DMA_WRITE && cmd_type == FIS_TYPE_REG_H2D) {
-        m_dma_write = true;
-        printf("DEVICE: DMA Write command received\n");
-    } else if (fis_type == FIS_TYPE_DMA_READ && cmd_type == FIS_TYPE_REG_H2D) {
-        m_dma_read = true;
-        printf("DEVICE: DMA Read command received\n");
+        if (m_data_count == 0) {
+            // If we're receiving the first data word, reset our buffer
+            reset_data_buffer();
+            
+            // Initialize the scramble function for first data word
+            raw_data = scramble_data(swap_endian(m_txphy_data));
+            fis_type = (raw_data >> 16) & 0xFF;
+            cmd_type = (raw_data & 0xFF);
+            
+            // Store the first data word
+            m_received_data[m_data_count++] = raw_data;
+            
+            // Calculate expected CRC
+            calculate_crc(raw_data);
+            
+            // Set command flags
+            if (fis_type == FIS_TYPE_DMA_WRITE && cmd_type == FIS_TYPE_REG_H2D) {
+                m_dma_write = true;
+                printf("DEVICE: DMA Write command received\n");
+            } else if (fis_type == FIS_TYPE_DMA_READ && cmd_type == FIS_TYPE_REG_H2D) {
+                m_dma_read = true;
+                printf("DEVICE: DMA Read command received\n");
+            } else if (fis_type == FIS_TYPE_PIO_WRITE_BUFFER && cmd_type == FIS_TYPE_REG_H2D) {
+                m_pio_write = true;
+                printf("DEVICE: PIO Write command received\n");
+            } else if (fis_type == FIS_TYPE_PIO_READ_BUFFER && cmd_type == FIS_TYPE_REG_H2D) {
+                m_pio_read = true;
+                printf("DEVICE: PIO Read command received\n");
+            } else if (cmd_type == FIS_TYPE_DATA) {
+                m_data_response = true;
+                printf("DEVICE: Data command received\n");
+            }
+        } else {
+            raw_data = scramble_data(swap_endian(m_txphy_data));
+            m_crc_matched = (raw_data == m_crc);
+            calculate_crc(raw_data);
+            
+            if (m_crc_matched)
+                printf("DEVICE: CRC validation successful\n");
+            
+            // Store the data word
+            m_received_data[m_data_count++] = raw_data;
+        }
     }
 }
 
@@ -311,9 +378,7 @@ uint64_t SATASIM::scramble_function(uint16_t prior) {
 }
 
 // Main scrambling function 
-uint32_t SATASIM::scramble_data(uint32_t data, bool init) {
-    if (init)
-        m_scrambler_fill = SCRAMBLER_INITIAL;
+uint32_t SATASIM::scramble_data(uint32_t data) {
     uint64_t result = scramble_function(m_scrambler_fill);
     uint32_t prn = result >> 16;
     m_scrambler_fill = result & 0xFFFF;
@@ -351,55 +416,16 @@ uint32_t SATASIM::calculate_crc(uint32_t data) {
     return m_crc;
 }
 
-// Activate DMA operation
-void SATASIM::dma_activate() {
-    // Send RRDY primitive (tells that device ready for data)
-    wait_for_primitive(XRDY_P);
-    device_sends(RRDY_P, true);
-    
-    // Send WTRM primitive (tells that device received data)
-    wait_for_primitive(WTRM_P);
-    device_sends(OK_P, true);
-    
-    // Send XRDY primitive (tells that device has something to send)
-    wait_for_primitive(SYNC_P);
-    device_sends(XRDY_P, true);
-    
-    // Send SOF primitive (tells that device detected the host is ready)
-    wait_for_primitive(RRDY_P);
-    device_sends(SOF_P, true);
-    
-    // Send Activate DMA (tells that DMA is activated)
-    wait_for_primitive(R_IP_P);
-
-    // Scrambled FIS command for DMA activate
-    uint32_t fis_cmd = 0xB476D2C2;
-    device_sends(fis_cmd, false);
-
-    // CRC data for the FIS
-    uint32_t crc_data = 0xE71B49DA;
-    device_sends(crc_data, false);
-
-    device_sends(EOF_P, true);
-    
-    // Send OK primitive (tells that transfer is complete)
-    wait_for_primitive(OK_P);
-    device_sends(SYNC_P, true);
-}
-
 // Link layer state machine for DMA activation
 LinkState SATASIM::link_layer_model() {
-    static int data_cnt = 0;
     static int align_cnt = 0;
-    static int s_data = 0;
-    static int dma_act_fis = (0x00 << 24) | (0x00 << 16) | (0x00 << 8) | 0x39; // DMA Activate FIS
 
     if (m_oob_done) {
         // Use a state machine to handle the link layer protocol
         switch (m_link_state) {
             case SEND_ALIGN:
                 align_cnt++;    // Count the number of ALIGN primitives sent (100 is trivial)
-                device_sends(ALIGN_P, true);
+                device_phy_sends(ALIGN_P, true);
                 // If OOB processing is done, transition to IDLE
                 if (align_cnt == 100) {
                     m_link_state = IDLE;
@@ -408,19 +434,20 @@ LinkState SATASIM::link_layer_model() {
                 break;
 
             case IDLE:
-                device_sends(SYNC_P, true);
+                reset_data_buffer();
+                device_phy_sends(SYNC_P, true);
                 // Host asks; if device is ready to accept data
                 if (wait_for_primitive(XRDY_P)) {
                     m_link_state = RCV_CHKRDY;
                     printf("DEVICE: Link state -> RCV_CHKRDY\n");
-                } else if  (m_dma_write) {
+                } else if (m_dma_write || m_dma_read || m_pio_write || m_pio_read || m_data_response) {
                     m_link_state = SEND_CHKRDY;
                     printf("DEVICE: Link state -> SEND_CHKRDY\n");
                 }
                 break;
 
             case SEND_CHKRDY:
-                device_sends(XRDY_P, true);
+                device_phy_sends(XRDY_P, true);
                 if (wait_for_primitive(RRDY_P)) {
                     m_link_state = SEND_DATA;
                     printf("DEVICE: Link state -> SEND_DATA\n");
@@ -432,29 +459,47 @@ LinkState SATASIM::link_layer_model() {
 
             case SEND_DATA:
                 if (m_dma_write) {
-                    if (data_cnt == 0) {
-                        device_sends(SOF_P, true);
-                        data_cnt++;
-                    } else if (data_cnt == 1) {
-                        s_data = swap_endian(scramble_data(dma_act_fis, true));    // Scrambled FIS command for DMA activate
-                        device_sends(s_data, false);
-                        data_cnt++;
-                    } else if (data_cnt == 2) {
-                        s_data = swap_endian(scramble_data(calculate_crc(dma_act_fis), false));
-                        printf("DEVICE: CRC data: 0x%08x\n", s_data);
-                        data_cnt++;
-                    } else if (data_cnt == 3) {
-                        m_dma_write = false;
-                        device_sends(EOF_P, true);
-                        data_cnt++;
-                        m_link_state = WAIT;
-                        printf("DEVICE: Link state -> WAIT\n");
+                    if (m_data_count == 0) {
+                        device_phy_sends(SOF_P, true);
+                        m_data_count++;
+                    } else if (m_data_count == 1) {
+                        device_link_sends(DMA_ACT_FIS_RESPONSE[0], false);
+                        m_data_count++;
+                    } else if (m_data_count == 2) {
+                        device_link_sends(DMA_ACT_FIS_RESPONSE[0], true);
+                        m_link_state = SEND_EOF;
+                        printf("DEVICE: Link state -> SEND_EOF\n");
+                    } 
+                } else if (m_data_response) {
+                    if (m_data_count == 0) {
+                        device_phy_sends(SOF_P, true);
+                        m_data_count++;
+                    } else {
+                        if (m_data_count == 5) {
+                            device_link_sends(D2H_REG_FIS_RESPONSE[m_data_count-1], true);
+                            m_link_state = SEND_EOF;
+                            printf("DEVICE: Link state -> SEND_EOF\n");
+                        } else {
+                            device_link_sends(D2H_REG_FIS_RESPONSE[m_data_count-1], false);
+                            m_data_count++;
+                        }
                     }
                 }
                 break;
+
+            case SEND_EOF:
+                device_phy_sends(EOF_P, true);
+                m_dma_write = false;
+                m_dma_read = false;
+                m_pio_write = false;
+                m_pio_read = false;
+                m_data_response = false;
+                m_link_state = WAIT;
+                printf("DEVICE: Link state -> WAIT\n");
+                break;
             
             case RCV_CHKRDY:
-                device_sends(RRDY_P, true);
+                device_phy_sends(RRDY_P, true);
                 // Did we get the start of frame primitive?
                 if (wait_for_primitive(SOF_P)) {
                     m_link_state = RCV_DATA;
@@ -463,18 +508,38 @@ LinkState SATASIM::link_layer_model() {
                 break;
             
             case RCV_DATA:
-                device_sends(OK_P, true);
-                // Receive data from host
-                wait_for_command();
-                if (wait_for_primitive(WTRM_P) && (m_dma_write || m_dma_read)) {
-                    m_link_state = IDLE;
-                    printf("DEVICE: Link state -> IDLE\n");
+                // Keep indicating we're OK to receive data
+                device_phy_sends(R_IP_P, true);
+                
+                // Process incoming data
+                device_link_receives();
+
+                // Check if we've seen EOF or WTRM to end data reception
+                if (wait_for_primitive(EOF_P)) {
+                    m_data_complete = true;
+                    m_link_state = RCVEOF;
+                    printf("DEVICE: Link state -> RCVEOF\n");
+                } else if (wait_for_primitive(WTRM_P)) {
+                    m_link_state = BADEND;
+                    printf("DEVICE: Link state -> BADEND\n");
+                }
+                break;
+
+            case RCVEOF:
+                device_phy_sends(R_IP_P, true);
+                if (m_crc_matched) {
+                    m_link_state = GOODEND;
+                    printf("DEVICE: Link state -> GOODEND\n");
+                }
+                else {
+                    m_link_state = BADEND;
+                    printf("DEVICE: Link state -> BADEND\n");
                 }
                 break;
             
             case WAIT:
-                device_sends(WTRM_P, true);
-                //
+                device_phy_sends(WTRM_P, true);
+                // Wait for SYNC or OK or ERR primitive
                 if (wait_for_primitive(SYNC_P)) {
                     m_link_state = IDLE;
                     printf("DEVICE: Link state -> IDLE\n");
@@ -487,23 +552,22 @@ LinkState SATASIM::link_layer_model() {
                     m_link_state = IDLE;
                     printf("DEVICE: Link state -> IDLE\n");
                 }
-
                 break;
             
             case GOODEND:
-            //     // Send EOF primitive
-            //     device_sends(EOF_P, true);
-            //     m_link_state = LINK_WAIT_OK;
-            //     printf("DEVICE: Link state -> LINK_WAIT_OK\n");
-            //     break;
+                device_phy_sends(OK_P, true);
+                if (wait_for_primitive(SYNC_P)) {
+                    m_link_state = IDLE;
+                    printf("DEVICE: Link state -> IDLE\n");
+                }
+                break;
             
             case BADEND:
-            //     // Wait for OK primitive
-            //     primitive_detected = wait_for_primitive(OK_P);
-            //     if (primitive_detected) {
-            //         m_link_state = LINK_SEND_SYNC;
-            //         printf("DEVICE: Link state -> LINK_SEND_SYNC\n");
-            //     }
+                device_phy_sends(ERR_P, true);
+                if (wait_for_primitive(SYNC_P)) {
+                    m_link_state = IDLE;
+                    printf("DEVICE: Link state -> IDLE\n");
+                }
                 break;
         }
     }

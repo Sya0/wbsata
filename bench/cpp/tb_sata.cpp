@@ -89,7 +89,7 @@ public:
 		
 		// Initialize SATASIM for disk operations
 		m_sata = new SATASIM();
-		m_mem->load(filesystem_image);
+		// m_mem->load(filesystem_image);
 		
 		// Set this testbench as its own testbench reference
 		m_tb = this;
@@ -110,6 +110,7 @@ public:
 		// Call parent's simulation clock callback
 		TESTB<Vsata_controller>::sim_clk_tick();
 
+		// RAM to device
 		deploy_test_data(m_dma_addr);
 	}
 	
@@ -320,12 +321,17 @@ public:
 
 	// SATA Controller pulls data from memory
 	void deploy_test_data(const uint32_t dma_addr) {
+		// if (m_core->o_dma_cyc && m_core->o_dma_stb) {
+		// 	m_core->i_dma_ack = 1;
+		// 	m_core->i_dma_data = m_mem->operator[](m_dma_addr);
+		// 	m_dma_addr++;
+		// } else {
+		// 	m_core->i_dma_ack = 0;
+		// }
 		// Use MEMSIM::apply to handle the memory transaction
 		m_mem->apply(m_core->o_dma_cyc, m_core->o_dma_stb, m_core->o_dma_we,
-			dma_addr, &m_core->o_dma_data, m_core->o_dma_sel, 
+			m_core->o_dma_addr, &m_core->o_dma_data, m_core->o_dma_sel, 
 			m_core->i_dma_stall, m_core->i_dma_ack, &m_core->i_dma_data);
-		if (m_core->o_dma_cyc && m_core->o_dma_stb && !m_core->i_dma_stall)
-			m_dma_addr++;
 	}
 
 	bool verify_data(uint32_t dma_addr, uint32_t expected_val, uint32_t count) {
@@ -368,7 +374,14 @@ int	main(int argc, char **argv) {
 	uint32_t dma_addr = tb.m_dma_addr;
 	bool failed = false;
 	
-	// DMA Write
+	// Initialize memory with test pattern
+	for (uint32_t i = 0; i < test_lba; i++) {
+		uint32_t test_data = 0xA0000000 + i;
+		tb.m_mem->operator[](dma_addr + i) = test_data;
+	}
+	printf("TB: Initialized memory with test pattern\n");
+	
+	// Perform DMA write (RAM to disk via SATA controller)
 	printf("TB: Issue DMA Write\n");
 	tb.dma_write(test_lba, test_count, dma_addr);
 	

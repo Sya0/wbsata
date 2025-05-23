@@ -8,6 +8,9 @@
 // SATA sector size in bytes
 #define SATA_SECTOR_SIZE 512
 
+// Maximum number of data words to store
+#define MAX_DATA_WORDS 512
+
 // SATA Addresses
 #define	SATA_CMD_ADDR		0
 #define	SATA_LBALO_ADDR		1
@@ -30,11 +33,14 @@
 #define R_IP_P      0x7CB55555
 
 // FIS Types
-#define FIS_TYPE_REG_H2D       0x27
-#define FIS_TYPE_REG_D2H       0x34
-#define FIS_TYPE_DMA_READ      0xC8
-#define FIS_TYPE_DMA_WRITE     0xCA
-#define FIS_TYPE_DMA_ACT       0x39
+#define FIS_TYPE_REG_H2D           0x27
+#define FIS_TYPE_REG_D2H           0x34
+#define FIS_TYPE_DATA              0x46
+#define FIS_TYPE_DMA_ACT           0x39
+#define FIS_TYPE_DMA_READ          0xC8
+#define FIS_TYPE_DMA_WRITE         0xCA
+#define FIS_TYPE_PIO_READ_BUFFER   0xE4
+#define FIS_TYPE_PIO_WRITE_BUFFER  0xE8
 
 // Link Layer State Machine States
 enum LinkState {
@@ -42,9 +48,11 @@ enum LinkState {
     IDLE,
     SEND_CHKRDY,
     SEND_DATA,
+    SEND_EOF,
     WAIT,
     RCV_CHKRDY,
     RCV_DATA,
+    RCVEOF,
     GOODEND,
     BADEND
 };
@@ -121,6 +129,10 @@ private:
     // DMA operations
     bool m_dma_write;
     bool m_dma_read;
+    bool m_pio_write;
+    bool m_pio_read;
+    bool m_data_response;
+
     // SATA Scrambling and CRC constants
     const uint16_t SCRAMBLER_POLYNOMIAL = 0xa011;
     const uint16_t SCRAMBLER_INITIAL = 0xffff;
@@ -132,13 +144,29 @@ private:
     uint32_t m_crc;
     
     // Scrambler and CRC functions based on RTL implementation
-    uint32_t scramble_data(uint32_t data, bool init);
+    uint32_t scramble_data(uint32_t data);
     uint32_t calculate_crc(uint32_t data);
     
     // Helper functions that implement the RTL counterparts
     uint64_t scramble_function(uint16_t prior);
     uint32_t advance_crc(uint32_t prior, uint32_t dword);
     
+    // Data buffer for received data
+    uint32_t m_received_data[MAX_DATA_WORDS];
+    size_t m_data_count;
+    bool m_crc_matched;
+    bool m_data_complete;
+
+    // Responses
+    uint32_t D2H_REG_FIS_RESPONSE[4] = {
+		0x00770034,     // FIS TYPE (0x34) | RIRR,PMPORT | STATUS | ERROR
+		0x00000000,		// DEVICE | LBA[23:0]
+		0x00000000,		// FEATURES[15:8] | LBA[47:24]
+		0x00000000		// CONTROL | ICC | COUNT[15:0]
+	};
+
+    uint32_t DMA_ACT_FIS_RESPONSE[1] = { 0x00000039 };
+
 public:
     // Constructor/destructor
     SATASIM();
@@ -158,14 +186,12 @@ public:
     void detect_coms();
     bool send_coms();
     bool process_oob();
-    void device_sends(uint32_t data, bool primitive);
+    void device_phy_sends(uint32_t data, bool primitive);
     
-    // Process controller TX data
+    // Process controller RX-TX data
     bool wait_for_primitive(uint32_t primitive);
-    void wait_for_command();
-    
-    // DMA operations
-    void dma_activate();
+    void device_link_receives();
+    void device_link_sends(uint32_t data, bool is_last);
 
     // Link layer model
     LinkState link_layer_model();
@@ -192,6 +218,10 @@ public:
                          bool &rxphy_primitive,
                          uint64_t &rxphy_data,
                          bool &phy_ready);
+
+    // Get received data information
+    uint32_t* get_received_data() { return m_received_data; }
+    void reset_data_buffer();
 };
 
 #endif // SATASIM_H 

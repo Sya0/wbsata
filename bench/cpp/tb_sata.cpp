@@ -262,6 +262,39 @@ public:
 			printf("ERROR: Timeout waiting for interrupt\n");
 	}
 
+	// SATA Controller pulls data from memory
+	void deploy_test_data() {
+		// if (m_core->o_dma_cyc && m_core->o_dma_stb) {
+		// 	m_core->i_dma_ack = 1;
+		// 	m_core->i_dma_data = m_mem->operator[](m_dma_addr);
+		// 	m_dma_addr++;
+		// } else {
+		// 	m_core->i_dma_ack = 0;
+		// }
+		// Use MEMSIM::apply to handle the memory transaction
+		m_mem->apply(m_core->o_dma_cyc, m_core->o_dma_stb, m_core->o_dma_we,
+			m_core->o_dma_addr, &m_core->o_dma_data, m_core->o_dma_sel, 
+			m_core->i_dma_stall, m_core->i_dma_ack, &m_core->i_dma_data);
+	}
+
+	// Verify data from memory
+	bool verify_data(uint32_t w_addr, uint32_t r_addr) {
+		bool success = true;
+		
+		// Verify data directly from memory
+		for (uint32_t i = 0; i < SATA_SECTOR_SIZE/4; i++) {
+			// printf("TB: Received data[%u] = %08x, Sent data[%u] = %08x\n", 
+			// 	i, m_mem->operator[](r_addr + i), i, m_mem->operator[](w_addr + i));
+			if (m_mem->operator[](r_addr + i) != m_mem->operator[](w_addr + i)) {
+				printf("TB: Data verification FAILED\n");
+				return false;
+			}
+		}
+		printf("TB: Data verification PASSED\n");
+		
+		return success;
+	}
+
 	// Write received data to disk
 	void write_to_disk(uint64_t lba, const uint32_t* data, uint32_t count) {
 		// Open disk file for writing
@@ -351,7 +384,7 @@ public:
 		// Write the received data to disk
 		write_to_disk(lba, m_sata->get_received_data(), count);
 		
-		printf("DMA Write complete: LBA=%llu, Count=%u, DMA Addr=0x%08x\n", 
+		printf("TB: DMA Write complete: LBA=%llu, Count=%u, DMA Addr=0x%08x\n", 
 			(unsigned long long)lba, count, dma_addr);
 	}
 
@@ -387,77 +420,134 @@ public:
 		// Wait for operation to complete (interrupt)
 		wait_for_int();
 		
-		printf("DMA Read complete: LBA=%llu, Count=%u, DMA Addr=0x%08x\n", 
+		printf("TB: DMA Read complete: LBA=%llu, Count=%u, DMA Addr=0x%08x\n", 
 			(unsigned long long)lba, count, dma_addr);
-	}
-
-	// SATA Controller pulls data from memory
-	void deploy_test_data() {
-		// if (m_core->o_dma_cyc && m_core->o_dma_stb) {
-		// 	m_core->i_dma_ack = 1;
-		// 	m_core->i_dma_data = m_mem->operator[](m_dma_addr);
-		// 	m_dma_addr++;
-		// } else {
-		// 	m_core->i_dma_ack = 0;
-		// }
-		// Use MEMSIM::apply to handle the memory transaction
-		m_mem->apply(m_core->o_dma_cyc, m_core->o_dma_stb, m_core->o_dma_we,
-			m_core->o_dma_addr, &m_core->o_dma_data, m_core->o_dma_sel, 
-			m_core->i_dma_stall, m_core->i_dma_ack, &m_core->i_dma_data);
-	}
-
-	// Verify data from memory
-	bool verify_data(uint32_t dma_addr, uint32_t expected_val, uint32_t count) {
-		bool success = true;
-		
-		// Verify data directly from memory
-		for (uint32_t i = 0; i < count*(SATA_SECTOR_SIZE/4); i++) {
-			uint32_t value = m_mem->operator[](dma_addr + i);
-			if (value != expected_val + i) {
-				printf("Data mismatch at offset %u: Expected 0x%08x, Got 0x%08x\n", 
-					i, expected_val + i, value);
-				success = false;
-			}
-		}
-		
-		return success;
 	}
 
 	// Test DMA write and read
 	// For DMA Write: Memory (dma_addr) -> SATA Controller -> Disk (LBA)
 	// For DMA Read:  Disk (LBA) -> SATA Controller -> Memory (dma_addr)
 	bool dma_test(uint32_t lba, uint32_t count, uint32_t dma_addr) {
+		uint32_t w_addr = dma_addr;
+		uint32_t r_addr = dma_addr + SATA_SECTOR_SIZE;
 		uint32_t *test_data = new uint32_t[SATA_SECTOR_SIZE/4];
 
 		// Initialize memory with test pattern
-		for (uint32_t i = 0; i < SATA_SECTOR_SIZE/4; i++)
+		for (uint32_t i = 0; i < count * (SATA_SECTOR_SIZE/4); i++)
 			test_data[i] = 0xA0000000 + i;
 
 		printf("TB: Initialized memory with test pattern\n");
-		m_mem->load(dma_addr>>2, (char*)&test_data[0], sizeof(uint32_t)*SATA_SECTOR_SIZE/4);
+		m_mem->load(w_addr>>2, (char*)&test_data[0], sizeof(uint32_t)*count * SATA_SECTOR_SIZE/4);
 		
 		// Perform DMA write (RAM to disk via SATA controller)
 		printf("TB: Issue DMA Write\n");
-		dma_write(lba, count, dma_addr);
+		dma_write(lba, count, w_addr);
 		
 		// Wait some time after DMA write
 		wait(1000);
 		
 		// DMA Read
 		printf("TB: Issue DMA Read\n");
-		dma_read(lba, count, dma_addr);
+		dma_read(lba, count, r_addr);
 		
 		// Verify read data equals written data
 		printf("TB: Verifying read data matches written data...\n");
-		for (uint32_t i = 0; i < SATA_SECTOR_SIZE/4; i++) {
-			// printf("TB: Received data[%u] = %08x, Sent data[%u] = %08x\n", 
-			// 	i, m_sata->get_received_data()[i], i, m_sata->get_sent_data(i));
-			if (m_sata->get_received_data()[i] != m_sata->get_sent_data(i)) {
-				printf("TB: Data verification FAILED\n");
-				return false;
-			}
+		verify_data(w_addr, r_addr);
+
+		delete[] test_data;
+		return true;
+	}
+
+	// Execute PIO write operation
+	void pio_write(uint64_t lba, uint32_t count, uint32_t dma_addr) {
+		if (!m_core || !m_tb) {
+			std::cerr << "Cannot perform PIO write: Core or testbench not set" << std::endl;
+			return;
 		}
-		printf("TB: Data verification PASSED\n");
+
+		// Only 28-bit LBA and 8-bit count supported for now
+		uint32_t lba24 = (uint32_t)(lba & 0xFFFFFF); // lower 24 bits
+		uint32_t lba_hi = 0; // upper bits not used
+		uint32_t count8 = count & 0xFF; // lower 8 bits
+		
+		// Setup Wishbone registers for the PIO write
+		wb_write_reg(SATA_LBAHI_ADDR, lba_hi);             // Upper bits
+		wb_write_reg(SATA_LBALO_ADDR, lba24);              // Lower 24 bits
+		wb_write_reg(SATA_COUNT_ADDR, count8);             // Count
+		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr);          // DMA address low
+		wb_write_reg(SATA_DMA_ADDR_HI, uint32_t(0));       // DMA address high
+		
+		// Construct the command FIS word for PIO write
+		uint32_t fis_cmd = (0x00 << 24) | (FIS_TYPE_PIO_WRITE_BUFFER << 16) | 
+						((0x40 | ((lba >> 24) & 0x0F)) << 8) | FIS_TYPE_REG_H2D;
+		wb_write_reg(SATA_CMD_ADDR, fis_cmd);            // Command
+
+		// Wait for operation to complete (interrupt)
+		wait_for_int();
+		
+		printf("TB: PIO Write complete: LBA=%llu, Count=%u\n", 
+			(unsigned long long)lba, count);
+	}
+
+	// Execute PIO read operation
+	void pio_read(uint64_t lba, uint32_t count, uint32_t dma_addr) {
+		if (!m_core || !m_tb) {
+			std::cerr << "Cannot perform PIO read: Core or testbench not set" << std::endl;
+			return;
+		}
+		
+		// Only 28-bit LBA and 8-bit count supported for now
+		uint32_t lba24 = (uint32_t)(lba & 0xFFFFFF); // lower 24 bits
+		uint32_t lba_hi = 0; // upper bits not used
+		uint32_t count8 = count & 0xFF; // lower 8 bits
+		
+		// Setup Wishbone registers for the PIO read
+		wb_write_reg(SATA_LBAHI_ADDR, lba_hi);             // Upper bits
+		wb_write_reg(SATA_LBALO_ADDR, lba24);              // Lower 24 bits
+		wb_write_reg(SATA_COUNT_ADDR, count8);             // Count
+		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr);          // DMA address low
+		wb_write_reg(SATA_DMA_ADDR_HI, uint32_t(0));       // DMA address high
+		
+		// Construct the command FIS word for PIO read
+		uint32_t fis_cmd = (0x00 << 24) | (FIS_TYPE_PIO_READ_BUFFER << 16) | 
+						((0x40 | ((lba >> 24) & 0x0F)) << 8) | FIS_TYPE_REG_H2D;
+		wb_write_reg(SATA_CMD_ADDR, fis_cmd);            // Command
+
+		// Wait for operation to complete (interrupt)
+		wait_for_int();
+		
+		printf("TB: PIO Read complete: LBA=%llu, Count=%u\n", 
+			(unsigned long long)lba, count);
+	}
+
+	// Test PIO write and read
+	bool pio_test(uint32_t lba, uint32_t count, uint32_t dma_addr) {
+		uint32_t w_addr = dma_addr;
+		uint32_t r_addr = dma_addr + SATA_SECTOR_SIZE;
+		uint32_t *test_data = new uint32_t[count * (SATA_SECTOR_SIZE/4)];
+
+		// Initialize test pattern
+		for (uint32_t i = 0; i < count * (SATA_SECTOR_SIZE/4); i++)
+			test_data[i] = 0xB0000000 + i;
+
+		printf("TB: Initialized test pattern for PIO\n");
+		// Load test data at address 0
+		m_mem->load(w_addr>>2, (char*)&test_data[0], sizeof(uint32_t)*count * (SATA_SECTOR_SIZE/4));
+		
+		// Perform PIO write
+		printf("TB: Issue PIO Write\n");
+		pio_write(lba, count, w_addr);
+		
+		// Wait some time after PIO write
+		wait(1000);
+		
+		// PIO Read
+		printf("TB: Issue PIO Read\n");
+		pio_read(lba, count, r_addr);
+		
+		// Verify read data equals written data
+		printf("TB: Verifying PIO read data matches written data...\n");
+		verify_data(w_addr, r_addr);
 
 		delete[] test_data;
 		return true;
@@ -487,12 +577,24 @@ int	main(int argc, char **argv) {
 	uint32_t dma_addr = tb.m_dma_addr;
 	bool success = false;
 	
+	// Test DMA operations
+	printf("\n=== Testing DMA Operations ===\n");
 	success = tb.dma_test(test_lba, test_count, dma_addr);
-
 	if (success)
-		printf("TEST SUMMARY: SUCCESS!\n");
+		printf("DMA TEST SUMMARY: SUCCESS!\n");
 	else
-		printf("TEST SUMMARY: FAILED!\n");
+		printf("DMA TEST SUMMARY: FAILED!\n");
+
+	// Wait between tests
+	tb.wait(1000);
+
+	// Test PIO operations
+	printf("\n=== Testing PIO Operations ===\n");
+	success = tb.pio_test(test_lba + SATA_SECTOR_SIZE, test_count, 0); // Use different LBA
+	if (success)
+		printf("PIO TEST SUMMARY: SUCCESS!\n");
+	else
+		printf("PIO TEST SUMMARY: FAILED!\n");
 
 	tb.wait(1000);
 		

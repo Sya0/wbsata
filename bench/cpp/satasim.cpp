@@ -38,9 +38,9 @@ SATASIM::SATASIM() {
     m_oob_done = false;
 
     // Initialize DMA-PIO operations
-    m_dma_write = false;
+    m_dma_act = false;
     m_dma_read = false;
-    m_pio_write = false;
+    m_pio_setup = false;
     m_pio_read = false;
     m_data_response = false;
     
@@ -105,11 +105,6 @@ void SATASIM::reset_data_buffer() {
     m_data_count = 0;
     m_crc_matched = false;
     m_data_complete = false;
-    // m_dma_write = false;
-    // m_dma_read = false;
-    // m_pio_write = false;
-    // m_pio_read = false;
-    // m_data_response = false;
 }
 
 // Check if operation is in progress
@@ -336,15 +331,16 @@ void SATASIM::device_link_receives() {
             
             // Set command flags
             if (fis_type == FIS_TYPE_DMA_WRITE && cmd_type == FIS_TYPE_REG_H2D) {
-                m_dma_write = true;
+                m_dma_act = true;
                 printf("DEVICE: DMA Write command received\n");
             } else if (fis_type == FIS_TYPE_DMA_READ && cmd_type == FIS_TYPE_REG_H2D) {
                 m_dma_read = true;
                 printf("DEVICE: DMA Read command received\n");
             } else if (fis_type == FIS_TYPE_PIO_WRITE_BUFFER && cmd_type == FIS_TYPE_REG_H2D) {
-                m_pio_write = true;
+                m_pio_setup = true;
                 printf("DEVICE: PIO Write command received\n");
             } else if (fis_type == FIS_TYPE_PIO_READ_BUFFER && cmd_type == FIS_TYPE_REG_H2D) {
+                m_pio_setup = true;
                 m_pio_read = true;
                 printf("DEVICE: PIO Read command received\n");
             } else if (cmd_type == FIS_TYPE_DATA) {
@@ -429,6 +425,73 @@ uint32_t SATASIM::calculate_crc(uint32_t data) {
     return m_crc;
 }
 
+void SATASIM::dma_activate() {
+    if (m_data_count == 0) {
+        device_phy_sends(SOF_P, true);
+        m_data_count++;
+    } else if (m_data_count == 1) {
+        device_link_sends(DMA_ACT_FIS_RESPONSE[0], false);
+        m_data_count++;
+    } else if (m_data_count == 2) {
+        m_dma_act = false;
+        device_link_sends(0, true);
+        m_link_state = SEND_EOF;
+        printf("DEVICE: Link state -> SEND_EOF\n");
+    }
+}
+
+void SATASIM::pio_setup_response() {
+    if (m_data_count == 0) {
+        device_phy_sends(SOF_P, true);
+        m_data_count++;
+    } else if (m_data_count == 6) {
+        m_pio_setup = false;
+        device_link_sends(0, true);
+        m_link_state = SEND_EOF;
+        printf("DEVICE: Link state -> SEND_EOF\n");
+    } else {
+        device_link_sends(PIO_SETUP_FIS_RESPONSE[m_data_count-1], false);
+        m_data_count++;
+    }
+}
+
+void SATASIM::data_send() {
+    if (m_data_count == 0) {
+        device_phy_sends(SOF_P, true);
+        m_data_count++;
+    } else if (m_data_count == 1) {
+        device_link_sends(DATA_FIS_RESPONSE[0], false);
+        m_data_count++;
+    } else if (m_data_count == (SATA_SECTOR_SIZE/4)+2) {
+        m_dma_read = false;
+        m_pio_read = false;
+        m_data_response = true;
+        device_link_sends(0, true);
+        m_link_state = SEND_EOF;
+        printf("DEVICE: Link state -> SEND_EOF\n");
+    } else {
+        device_link_sends(m_sent_data[m_data_count-2], false);
+        m_data_count++;
+    }
+}
+
+void SATASIM::d2h_response() {
+    if (m_data_count == 0) {
+        device_phy_sends(SOF_P, true);
+        m_data_count++;
+    } else {
+        if (m_data_count == 5) {
+            m_data_response = false;
+            device_link_sends(0, true); // Data is not important here
+            m_link_state = SEND_EOF;
+            printf("DEVICE: Link state -> SEND_EOF\n");
+        } else {
+            device_link_sends(D2H_REG_FIS_RESPONSE[m_data_count-1], false);
+            m_data_count++;
+        }
+    }
+}
+
 // Link layer state machine for DMA activation
 LinkState SATASIM::link_layer_model() {
     static int align_cnt = 0;
@@ -453,7 +516,7 @@ LinkState SATASIM::link_layer_model() {
                 if (wait_for_primitive(XRDY_P)) {
                     m_link_state = RCV_CHKRDY;
                     printf("DEVICE: Link state -> RCV_CHKRDY\n");
-                } else if (m_dma_write || m_dma_read || m_pio_write || m_pio_read || m_data_response) {
+                } else if (m_dma_act || m_dma_read || m_pio_setup || m_pio_read || m_data_response) {
                     m_link_state = SEND_CHKRDY;
                     printf("DEVICE: Link state -> SEND_CHKRDY\n");
                 }
@@ -471,57 +534,18 @@ LinkState SATASIM::link_layer_model() {
                 break;
 
             case SEND_DATA:
-                if (m_dma_write) {
-                    if (m_data_count == 0) {
-                        device_phy_sends(SOF_P, true);
-                        m_data_count++;
-                    } else if (m_data_count == 1) {
-                        device_link_sends(DMA_ACT_FIS_RESPONSE[0], false);
-                        m_data_count++;
-                    } else if (m_data_count == 2) {
-                        device_link_sends(DMA_ACT_FIS_RESPONSE[0], true);
-                        m_link_state = SEND_EOF;
-                        printf("DEVICE: Link state -> SEND_EOF\n");
-                    } 
-                } else if (m_dma_read) {
-                    if (m_data_count == 0) {
-                        device_phy_sends(SOF_P, true);
-                        m_data_count++;
-                    } else if (m_data_count == 1) {
-                        device_link_sends(DMA_DATA_FIS_RESPONSE[0], false);
-                        m_data_count++;
-                    } else if (m_data_count == (SATA_SECTOR_SIZE/4)+2) {
-                        device_link_sends(0, true);
-                        m_link_state = SEND_EOF;
-                        printf("DEVICE: Link state -> SEND_EOF\n");
-                    } else {
-                        device_link_sends(m_sent_data[m_data_count-2], false);
-                        m_data_count++;
-                    }
-                } else if (m_data_response) {
-                    if (m_data_count == 0) {
-                        device_phy_sends(SOF_P, true);
-                        m_data_count++;
-                    } else {
-                        if (m_data_count == 5) {
-                            device_link_sends(0, true); // Data is not important here
-                            m_link_state = SEND_EOF;
-                            printf("DEVICE: Link state -> SEND_EOF\n");
-                        } else {
-                            device_link_sends(D2H_REG_FIS_RESPONSE[m_data_count-1], false);
-                            m_data_count++;
-                        }
-                    }
-                }
+                if (m_dma_act)
+                    dma_activate();
+                else if (m_pio_setup)
+                    pio_setup_response();
+                else if (m_dma_read || m_pio_read)
+                    data_send();
+                else if (m_data_response)
+                    d2h_response();
                 break;
 
             case SEND_EOF:
                 device_phy_sends(EOF_P, true);
-                m_data_response = m_dma_read;
-                m_dma_write = false;
-                m_dma_read = false;
-                m_pio_write = false;
-                m_pio_read = false;
                 m_link_state = WAIT;
                 printf("DEVICE: Link state -> WAIT\n");
                 break;

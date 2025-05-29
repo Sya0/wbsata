@@ -127,9 +127,9 @@ private:
     bool m_oob_done;
 
     // DMA operations
-    bool m_dma_write;
+    bool m_dma_act;
     bool m_dma_read;
-    bool m_pio_write;
+    bool m_pio_setup;
     bool m_pio_read;
     bool m_data_response;
 
@@ -169,7 +169,15 @@ private:
 
     uint32_t DMA_ACT_FIS_RESPONSE[1] = { 0x00000039 };
 
-    uint32_t DMA_DATA_FIS_RESPONSE[1] = { 0x00000046 };
+    uint32_t DATA_FIS_RESPONSE[1] = { 0x00000046 };
+
+    uint32_t PIO_SETUP_FIS_RESPONSE[5] = {
+		0x0000005F, // FIS TYPE (0x5F) | RIRR,PMPORT | STATUS | ERROR
+		0x00000000, // DEVICE | LBA[23:0]
+		0x00000000, // RESERVED | LBA[47:24]
+		0x01000000, // E_STATUS | RESERVED | E_CNT (sectors)
+        0x00020000  // TRANSFER COUNT (default: 512 bytes)
+	};
 
 public:
     // Constructor/destructor
@@ -228,6 +236,12 @@ public:
     uint32_t* get_received_data() { return m_received_data; }
     void set_sent_data(uint32_t* data) { m_sent_data = data; }
     uint32_t get_sent_data(uint32_t index) { return m_sent_data[index]; }
+
+    // Responses
+    void dma_activate();
+    void data_send();
+    void pio_setup_response();
+    void d2h_response();
 };
 
 #endif // SATASIM_H 

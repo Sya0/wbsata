@@ -152,7 +152,9 @@ private:
     uint32_t advance_crc(uint32_t prior, uint32_t dword);
     
     // Data buffer for received data
+    uint32_t m_lba;
     uint32_t m_received_data[MAX_DATA_WORDS];
+    uint32_t *m_sent_data;
     size_t m_data_count;
     bool m_crc_matched;
     bool m_data_complete;
@@ -166,6 +168,8 @@ private:
 	};
 
     uint32_t DMA_ACT_FIS_RESPONSE[1] = { 0x00000039 };
+
+    uint32_t DMA_DATA_FIS_RESPONSE[1] = { 0x00000046 };
 
 public:
     // Constructor/destructor
@@ -220,8 +224,10 @@ public:
                          bool &phy_ready);
 
     // Get received data information
-    uint32_t* get_received_data() { return m_received_data; }
     void reset_data_buffer();
+    uint32_t* get_received_data() { return m_received_data; }
+    void set_sent_data(uint32_t* data) { m_sent_data = data; }
+    uint32_t get_sent_data(uint32_t index) { return m_sent_data[index]; }
 };
 
 #endif // SATASIM_H 

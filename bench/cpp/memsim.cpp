@@ -64,7 +64,7 @@ void byteswapbuf(unsigned int n, uint32_t *buf) {
 	#endif
 }
 
-const int	MEMSIM::NWRDWIDTH = 16;
+const int	MEMSIM::NWRDWIDTH = 1;
 
 MEMSIM::MEMSIM(const unsigned int nbytes, const unsigned int delay) {
 	// {{{
@@ -73,12 +73,16 @@ MEMSIM::MEMSIM(const unsigned int nbytes, const unsigned int delay) {
 		;
 	m_len = nxt; m_mask = nxt-1;
 	m_mem = new BUSW[m_len];
+	memset(m_mem, 0, sizeof(BUSW)*m_len);
 
+	m_cleared = false;
 	m_delay = delay;
 	for(m_delay_mask=1; m_delay_mask < delay; m_delay_mask<<=1)
 		;
 	m_fifo_ack  = new int[m_delay_mask];
+	memset(m_fifo_ack, 0, sizeof(int)*m_delay_mask);
 	m_fifo_data = new BUSW[m_delay_mask*NWRDWIDTH];
+	memset(m_fifo_data, 0, sizeof(BUSW)*m_delay_mask*NWRDWIDTH);
 	for(unsigned i=0; i<m_delay_mask; i++)
 		m_fifo_ack[i] = 0;
 	m_delay_mask-=1;
@@ -89,6 +93,8 @@ MEMSIM::MEMSIM(const unsigned int nbytes, const unsigned int delay) {
 MEMSIM::~MEMSIM(void) {
 	// {{{
 	delete[]	m_mem;
+	delete[] m_fifo_ack;
+    delete[] m_fifo_data;
 }
 // }}}
 

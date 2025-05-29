@@ -17,6 +17,13 @@ SATASIM::SATASIM() {
     m_rxphy_valid = false;  
     m_rxphy_primitive = false;
     m_rxphy_data = 0;
+
+    // Initialize TX signals
+    m_txphy_cominit = false;
+    m_txphy_comwake = false;
+    m_txphy_elecidle = true;
+    m_txphy_primitive = false;
+    m_txphy_data = 0;
     
     // Initialize reset and ready signals
     m_reset = false;
@@ -30,20 +37,24 @@ SATASIM::SATASIM() {
     // Initialize OOB processing
     m_oob_done = false;
 
-    // Initialize DMA operations
+    // Initialize DMA-PIO operations
     m_dma_write = false;
     m_dma_read = false;
-
-    // Initialize PIO operations
     m_pio_write = false;
     m_pio_read = false;
+    m_data_response = false;
     
     // Initialize scrambler and CRC
+    m_crc_matched = false;
     m_scrambler_fill = SCRAMBLER_INITIAL;
     m_crc = CRC_INITIAL;
     
     // Initialize data buffer
+    m_lba = 0;
+    m_data_complete = false;
     reset_data_buffer();
+    memset(m_received_data, 0, sizeof(m_received_data));
+    m_sent_data = nullptr;
 }
 
 // Destructor
@@ -88,7 +99,7 @@ void SATASIM::reset() {
 
 // Reset data buffer
 void SATASIM::reset_data_buffer() {
-    memset(m_received_data, 0, sizeof(m_received_data));
+    // memset(m_received_data, 0, sizeof(m_received_data));
     m_scrambler_fill = SCRAMBLER_INITIAL;
     m_crc = CRC_INITIAL;
     m_data_count = 0;
@@ -98,6 +109,7 @@ void SATASIM::reset_data_buffer() {
     // m_dma_read = false;
     // m_pio_write = false;
     // m_pio_read = false;
+    // m_data_response = false;
 }
 
 // Check if operation is in progress
@@ -305,7 +317,6 @@ void SATASIM::device_link_receives() {
     uint32_t fis_type = 0;
     uint32_t cmd_type = 0;
     uint32_t raw_data = 0;
-    uint32_t expected_crc = 0;
     
     // Extract FIS type from 32-bit data
     if (!m_txphy_primitive) {
@@ -317,9 +328,8 @@ void SATASIM::device_link_receives() {
             raw_data = scramble_data(swap_endian(m_txphy_data));
             fis_type = (raw_data >> 16) & 0xFF;
             cmd_type = (raw_data & 0xFF);
-            
-            // Store the first data word
-            m_received_data[m_data_count++] = raw_data;
+            m_lba = (raw_data >> 8) & 0xFF;
+            m_data_count++;
             
             // Calculate expected CRC
             calculate_crc(raw_data);
@@ -350,7 +360,10 @@ void SATASIM::device_link_receives() {
                 printf("DEVICE: CRC validation successful\n");
             
             // Store the data word
-            m_received_data[m_data_count++] = raw_data;
+            if (!m_crc_matched && m_data_response) {
+                m_received_data[m_data_count-1] = raw_data;
+                m_data_count++;
+            }
         }
     }
 }
@@ -470,13 +483,28 @@ LinkState SATASIM::link_layer_model() {
                         m_link_state = SEND_EOF;
                         printf("DEVICE: Link state -> SEND_EOF\n");
                     } 
+                } else if (m_dma_read) {
+                    if (m_data_count == 0) {
+                        device_phy_sends(SOF_P, true);
+                        m_data_count++;
+                    } else if (m_data_count == 1) {
+                        device_link_sends(DMA_DATA_FIS_RESPONSE[0], false);
+                        m_data_count++;
+                    } else if (m_data_count == (SATA_SECTOR_SIZE/4)+2) {
+                        device_link_sends(0, true);
+                        m_link_state = SEND_EOF;
+                        printf("DEVICE: Link state -> SEND_EOF\n");
+                    } else {
+                        device_link_sends(m_sent_data[m_data_count-2], false);
+                        m_data_count++;
+                    }
                 } else if (m_data_response) {
                     if (m_data_count == 0) {
                         device_phy_sends(SOF_P, true);
                         m_data_count++;
                     } else {
                         if (m_data_count == 5) {
-                            device_link_sends(D2H_REG_FIS_RESPONSE[m_data_count-1], true);
+                            device_link_sends(0, true); // Data is not important here
                             m_link_state = SEND_EOF;
                             printf("DEVICE: Link state -> SEND_EOF\n");
                         } else {
@@ -489,11 +517,11 @@ LinkState SATASIM::link_layer_model() {
 
             case SEND_EOF:
                 device_phy_sends(EOF_P, true);
+                m_data_response = m_dma_read;
                 m_dma_write = false;
                 m_dma_read = false;
                 m_pio_write = false;
                 m_pio_read = false;
-                m_data_response = false;
                 m_link_state = WAIT;
                 printf("DEVICE: Link state -> WAIT\n");
                 break;

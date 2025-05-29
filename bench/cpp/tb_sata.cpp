@@ -66,7 +66,6 @@ public:
 	// Track basic disk image information
     std::string m_disk_filename;
     std::fstream m_disk_file;
-    std::vector<uint8_t> m_sector_buffer;
 
 	uint32_t m_dma_addr;
 
@@ -82,7 +81,7 @@ public:
 		}
 
 		// Initialize DMA address
-		m_dma_addr = 0x800100;
+		m_dma_addr = 0x80100;
 
 		// Initialize MEMSIM for DMA memory operations
 		m_mem = new MEMSIM(1024*1024, 10); // 1MB memory with 10-cycle delay
@@ -90,7 +89,13 @@ public:
 		// Initialize SATASIM for disk operations
 		m_sata = new SATASIM();
 		// m_mem->load(filesystem_image);
-		
+
+		// Initialize other member variables
+		m_current_lba = 0;
+		m_sector_count = 0;
+		m_disk_size = 0;
+		m_disk_filename = filesystem_image; // Initialize m_disk_filename
+
 		// Set this testbench as its own testbench reference
 		m_tb = this;
 		// }}}
@@ -111,7 +116,7 @@ public:
 		TESTB<Vsata_controller>::sim_clk_tick();
 
 		// RAM to device
-		deploy_test_data(m_dma_addr);
+		deploy_test_data();
 	}
 	
 	virtual	void sim_rx_clk_tick(void) {
@@ -257,6 +262,65 @@ public:
 			printf("ERROR: Timeout waiting for interrupt\n");
 	}
 
+	// Write received data to disk
+	void write_to_disk(uint64_t lba, const uint32_t* data, uint32_t count) {
+		// Open disk file for writing
+		m_disk_file.open(m_disk_filename, std::ios::binary | std::ios::in | std::ios::out);
+		if (!m_disk_file.is_open()) {
+			fprintf(stderr, "Failed to open disk image for writing\n");
+			return;
+		}
+
+		// Calculate file offset (LBA * sector size)
+		uint64_t offset = lba * SATA_SECTOR_SIZE;
+		m_disk_file.seekp(offset);
+
+		// Write data to disk (count is number of sectors, each sector is 128 words)
+		uint32_t words_to_write = count * (SATA_SECTOR_SIZE / 4);  // Convert sectors to words
+		for (uint32_t i = 0; i < words_to_write; i++) {
+			// Convert each 32-bit word to bytes and write
+			uint32_t word = data[i];
+			// printf("DEVICE: Writing word %08x to disk\n", word);
+			for (int j = 0; j < 4; j++) {
+				uint8_t byte = (word >> (j * 8)) & 0xFF;
+				m_disk_file.write(reinterpret_cast<char*>(&byte), 1);
+			}
+		}
+
+		// Close the file
+		m_disk_file.close();
+	}
+
+	// Read data from disk
+	void read_from_disk(uint64_t lba, uint32_t* data, uint32_t count) {
+		// Open disk file for reading
+		m_disk_file.open(m_disk_filename, std::ios::binary | std::ios::in);
+		if (!m_disk_file.is_open()) {
+			fprintf(stderr, "Failed to open disk image for reading\n");
+			return;
+		}
+
+		// Calculate file offset (LBA * sector size)
+		uint64_t offset = lba * SATA_SECTOR_SIZE;
+		m_disk_file.seekg(offset);
+
+		// Read data from disk (count is number of sectors, each sector is 128 words)
+		uint32_t words_to_read = count * (SATA_SECTOR_SIZE / 4);  // Convert sectors to words
+		for (uint32_t i = 0; i < words_to_read; i++) {
+			uint32_t word = 0;
+			// Read 4 bytes to form a 32-bit word
+			for (int j = 0; j < 4; j++) {
+				uint8_t byte;
+				m_disk_file.read(reinterpret_cast<char*>(&byte), 1);
+				word |= (byte << (j * 8));
+			}
+			data[i] = word;
+		}
+
+		// Close the file
+		m_disk_file.close();
+	}
+
 	// Execute DMA write operation
 	void dma_write(uint64_t lba, uint32_t count, uint32_t dma_addr) {
 		if (!m_core || !m_tb) {
@@ -283,6 +347,9 @@ public:
 		
 		// Wait for operation to complete (interrupt)
 		wait_for_int();
+		
+		// Write the received data to disk
+		write_to_disk(lba, m_sata->get_received_data(), count);
 		
 		printf("DMA Write complete: LBA=%llu, Count=%u, DMA Addr=0x%08x\n", 
 			(unsigned long long)lba, count, dma_addr);
@@ -311,6 +378,11 @@ public:
 		uint32_t fis_cmd = (0x00 << 24) | (FIS_TYPE_DMA_READ << 16) | 
 						((0x40 | ((lba >> 24) & 0x0F)) << 8) | FIS_TYPE_REG_H2D;
 		wb_write_reg(SATA_CMD_ADDR, fis_cmd);            // Command
+
+		// Read data from disk
+		uint32_t* read_data = new uint32_t[count * (SATA_SECTOR_SIZE/4)];  // Allocate space for all sectors
+		read_from_disk(lba, read_data, count);
+		m_sata->set_sent_data(read_data);
 		
 		// Wait for operation to complete (interrupt)
 		wait_for_int();
@@ -320,7 +392,7 @@ public:
 	}
 
 	// SATA Controller pulls data from memory
-	void deploy_test_data(const uint32_t dma_addr) {
+	void deploy_test_data() {
 		// if (m_core->o_dma_cyc && m_core->o_dma_stb) {
 		// 	m_core->i_dma_ack = 1;
 		// 	m_core->i_dma_data = m_mem->operator[](m_dma_addr);
@@ -334,11 +406,12 @@ public:
 			m_core->i_dma_stall, m_core->i_dma_ack, &m_core->i_dma_data);
 	}
 
+	// Verify data from memory
 	bool verify_data(uint32_t dma_addr, uint32_t expected_val, uint32_t count) {
 		bool success = true;
 		
 		// Verify data directly from memory
-		for (uint32_t i = 0; i < count; i++) {
+		for (uint32_t i = 0; i < count*(SATA_SECTOR_SIZE/4); i++) {
 			uint32_t value = m_mem->operator[](dma_addr + i);
 			if (value != expected_val + i) {
 				printf("Data mismatch at offset %u: Expected 0x%08x, Got 0x%08x\n", 
@@ -348,6 +421,46 @@ public:
 		}
 		
 		return success;
+	}
+
+	// Test DMA write and read
+	// For DMA Write: Memory (dma_addr) -> SATA Controller -> Disk (LBA)
+	// For DMA Read:  Disk (LBA) -> SATA Controller -> Memory (dma_addr)
+	bool dma_test(uint32_t lba, uint32_t count, uint32_t dma_addr) {
+		uint32_t *test_data = new uint32_t[SATA_SECTOR_SIZE/4];
+
+		// Initialize memory with test pattern
+		for (uint32_t i = 0; i < SATA_SECTOR_SIZE/4; i++)
+			test_data[i] = 0xA0000000 + i;
+
+		printf("TB: Initialized memory with test pattern\n");
+		m_mem->load(dma_addr>>2, (char*)&test_data[0], sizeof(uint32_t)*SATA_SECTOR_SIZE/4);
+		
+		// Perform DMA write (RAM to disk via SATA controller)
+		printf("TB: Issue DMA Write\n");
+		dma_write(lba, count, dma_addr);
+		
+		// Wait some time after DMA write
+		wait(1000);
+		
+		// DMA Read
+		printf("TB: Issue DMA Read\n");
+		dma_read(lba, count, dma_addr);
+		
+		// Verify read data equals written data
+		printf("TB: Verifying read data matches written data...\n");
+		for (uint32_t i = 0; i < SATA_SECTOR_SIZE/4; i++) {
+			// printf("TB: Received data[%u] = %08x, Sent data[%u] = %08x\n", 
+			// 	i, m_sata->get_received_data()[i], i, m_sata->get_sent_data(i));
+			if (m_sata->get_received_data()[i] != m_sata->get_sent_data(i)) {
+				printf("TB: Data verification FAILED\n");
+				return false;
+			}
+		}
+		printf("TB: Data verification PASSED\n");
+
+		delete[] test_data;
+		return true;
 	}
 };
 
@@ -369,44 +482,19 @@ int	main(int argc, char **argv) {
 	tb.wait(1000);
 
 	// Test parameters
-	uint32_t test_lba = 0x200;
+	uint32_t test_lba = 0;
 	uint32_t test_count = 1;
 	uint32_t dma_addr = tb.m_dma_addr;
-	bool failed = false;
+	bool success = false;
 	
-	// Initialize memory with test pattern
-	for (uint32_t i = 0; i < test_lba; i++) {
-		uint32_t test_data = 0xA0000000 + i;
-		tb.m_mem->operator[](dma_addr + i) = test_data;
-	}
-	printf("TB: Initialized memory with test pattern\n");
-	
-	// Perform DMA write (RAM to disk via SATA controller)
-	printf("TB: Issue DMA Write\n");
-	tb.dma_write(test_lba, test_count, dma_addr);
-	
-	// Wait some time after DMA write
-	// tb.wait(1000);
-	
-	// DMA Read
-	// printf("Issue DMA Read\n");
-	// tb.dma_read(test_lba, test_count, dma_addr);
-	
-	// Verify read data equals written data
-	// printf("Verifying read data matches written data...\n");
-	// if (!tb.verify_data(dma_addr, 0xA0000000, test_count)) {
-	// 	failed = true;
-	// 	printf("Data verification FAILED\n");
-	// } else {
-	// 	printf("Data verification PASSED\n");
-	// }
+	success = tb.dma_test(test_lba, test_count, dma_addr);
 
-	if (!failed)
+	if (success)
 		printf("TEST SUMMARY: SUCCESS!\n");
 	else
 		printf("TEST SUMMARY: FAILED!\n");
 
-	tb.wait(10000);
+	tb.wait(1000);
 		
-	return failed ? 1 : 0;
+	return success ? 0 : 1;
 }

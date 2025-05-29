@@ -109,6 +109,7 @@ verilate: $(OBJDIR)
 		--Wno-fatal \
 		--trace \
 		$(RTLD)/sata_controller.v \
+		--threads 1 \
 		-Mdir $(OBJDIR) --top-module sata_controller
 	cd $(OBJDIR) && make -f Vsata_controller.mk
 	@echo "Verilator model generation completed."
@@ -125,6 +126,7 @@ clean:
 ## {{{
 sata.img:
 	dd if=/dev/zero of=sata.img bs=1M count=128
+	mkfs.fat -F 16 sata.img
 	@echo "Created empty 128MB disk image: sata.img"
 ## }}}
 
@@ -155,3 +157,7 @@ debug:
 	@echo "INCS: $(INCS)"
 	@echo "============= Source Files ============="
 	@echo "SOURCES: $(SOURCES)"
+
+# Add Valgrind target
+valgrind: tb_sata
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --log-file=valgrind-out.txt ./tb_sata

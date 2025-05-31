@@ -42,8 +42,9 @@ OBJDIR := obj-pc
 VTLD := ../../bench/verilog
 CPPD := .
 RTLD := ../../rtl
-VERILATOR_ROOT := $(HOME)/Downloads/oss-cad-suite
-VERILATOR_INCLUDE := $(HOME)/Downloads/oss-cad-suite/share/verilator/include
+VERILATOR_ROOT := $(shell bash -c 'verilator -V|grep VERILATOR_ROOT|tail -1|sed -e " s/^.*=\s*//"')
+VROOT := $(VERILATOR_ROOT)
+VERILATOR_INCLUDE := $(VROOT)/include
 
 # Verilator setup
 ifeq ($(VERILATOR_ROOT),)
@@ -61,7 +62,7 @@ endif
 # C++ compiler flags
 CFLAGS := -Wall -O2 -g -std=c++14
 INCS   := -I$(OBJDIR) -I$(VERILATOR_INCLUDE) -I. -I$(CPPD)
-LIBS   := -lz
+LIBS   := -lz -lpthread
 
 # Source files
 SOURCES := tb_sata.cpp satasim.cpp memsim.cpp
@@ -69,7 +70,8 @@ SOURCES := tb_sata.cpp satasim.cpp memsim.cpp
 # Add verilator infrastructure sources
 VROOT := $(VERILATOR_ROOT)
 VINCS := -I$(VROOT)/include
-VOBJS := $(OBJDIR)/verilated.o $(OBJDIR)/verilated_vcd_c.o $(OBJDIR)/verilated_threads.o
+VSRCS := verilated.cpp verilated_vcd_c.cpp verilated_threads.cpp
+VOBJS := $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(VSRCS)))
 
 # Check if include directory exists
 ifeq ($(wildcard $(VERILATOR_INCLUDE)/verilated.cpp),)
@@ -81,17 +83,12 @@ $(OBJDIR)/%.o: $(VERILATOR_INCLUDE)/%.cpp | $(OBJDIR)
 	$(CXX) $(CFLAGS) $(VINCS) -c $< -o $@
 
 # Explicit rules for verilator objects
-$(OBJDIR)/verilated.o: $(VERILATOR_INCLUDE)/verilated.cpp | $(OBJDIR)
-	$(CXX) $(CFLAGS) $(VINCS) -c $< -o $@
-
-$(OBJDIR)/verilated_vcd_c.o: $(VERILATOR_INCLUDE)/verilated_vcd_c.cpp | $(OBJDIR)
-	$(CXX) $(CFLAGS) $(VINCS) -c $< -o $@
-
-$(OBJDIR)/verilated_threads.o: $(VERILATOR_INCLUDE)/verilated_threads.cpp | $(OBJDIR)
+$(OBJDIR)/%.o: $(VERILATOR_INCLUDE)/%.cpp
+	$(mk-objdir)
 	$(CXX) $(CFLAGS) $(VINCS) -c $< -o $@
 
 # Build the testbench executable
-tb_sata: $(OBJDIR) $(VOBJS) verilate $(SOURCES)
+tb_sata: $(VOBJS) verilate $(SOURCES)
 	$(CXX) $(CFLAGS) $(INCS) $(SOURCES) $(VOBJS) $(OBJDIR)/Vsata_controller__ALL.a $(LIBS) -o $@
 
 ## Create output directory if it doesn't exist
@@ -101,19 +98,21 @@ $(OBJDIR):
 ## Verilate the sata_controller.v module
 ## {{{
 .PHONY: verilate
-verilate: $(OBJDIR)
-	@echo "Verilating sata_controller.v and its dependencies..."
-	$(VERILATOR) -Wall -cc -DVERILATOR \
-		-I$(RTLD) \
-		-y $(RTLD) \
-		--Wno-fatal \
-		--trace \
+VSRCS := $(wildcard $(RTLD)/*.v)
+$(OBJDIR)/Vsata_controller.mk: $(VSRCS)
+	$(VERILATOR) -Wall -Wno-SYNCASYNCNET -cc -I$(RTLD) -y $(RTLD) --trace \
 		$(RTLD)/sata_controller.v \
 		--threads 1 \
 		-Mdir $(OBJDIR) --top-module sata_controller
-	cd $(OBJDIR) && make -f Vsata_controller.mk
+$(OBJDIR)/Vsata_controller.o: $(OBJDIR)/Vsata_controller.mk
+	make -C $(OBJDIR) -f Vsata_controller.mk
+verilate: $(OBJDIR)/Vsata_controller.o
 	@echo "Verilator model generation completed."
 ## }}}
+
+define mk-objdir
+	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi"
+endef
 
 ## Clean
 ## {{{

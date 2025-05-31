@@ -264,13 +264,6 @@ public:
 
 	// SATA Controller pulls data from memory
 	void deploy_test_data() {
-		// if (m_core->o_dma_cyc && m_core->o_dma_stb) {
-		// 	m_core->i_dma_ack = 1;
-		// 	m_core->i_dma_data = m_mem->operator[](m_dma_addr);
-		// 	m_dma_addr++;
-		// } else {
-		// 	m_core->i_dma_ack = 0;
-		// }
 		// Use MEMSIM::apply to handle the memory transaction
 		m_mem->apply(m_core->o_dma_cyc, m_core->o_dma_stb, m_core->o_dma_we,
 			m_core->o_dma_addr, &m_core->o_dma_data, m_core->o_dma_sel, 
@@ -283,10 +276,10 @@ public:
 		
 		// Verify data directly from memory
 		for (uint32_t i = 0; i < SATA_SECTOR_SIZE/4; i++) {
-			// printf("TB: Received data[%u] = %08x, Sent data[%u] = %08x\n", 
-			// 	i, m_mem->operator[](r_addr + i), i, m_mem->operator[](w_addr + i));
 			if (m_mem->operator[](r_addr + i) != m_mem->operator[](w_addr + i)) {
 				printf("TB: Data verification FAILED\n");
+				printf("TB: Received data[%u] = %08x, Sent data[%u] = %08x\n", 
+					i, m_mem->operator[](r_addr + i), i, m_mem->operator[](w_addr + i));
 				return false;
 			}
 		}
@@ -370,7 +363,7 @@ public:
 		wb_write_reg(SATA_LBAHI_ADDR, lba_hi);             // Upper bits
 		wb_write_reg(SATA_LBALO_ADDR, lba24);              // Lower 24 bits
 		wb_write_reg(SATA_COUNT_ADDR, count8);             // Count
-		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr);          // DMA address low
+		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr<<2);       // DMA address low
 		wb_write_reg(SATA_DMA_ADDR_HI, uint32_t(0));       // DMA address high
 		
 		// Construct the command FIS word for DMA write
@@ -404,7 +397,7 @@ public:
 		wb_write_reg(SATA_LBAHI_ADDR, lba_hi);             // Upper bits
 		wb_write_reg(SATA_LBALO_ADDR, lba24);              // Lower 24 bits
 		wb_write_reg(SATA_COUNT_ADDR, count8);             // Count
-		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr);          // DMA address low
+		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr<<2);       // DMA address low
 		wb_write_reg(SATA_DMA_ADDR_HI, uint32_t(0));       // DMA address high
 		
 		// Construct the command FIS word for DMA read
@@ -437,7 +430,7 @@ public:
 			test_data[i] = 0xA0000000 + i;
 
 		printf("TB: Initialized memory with test pattern\n");
-		m_mem->load(w_addr>>2, (char*)&test_data[0], sizeof(uint32_t)*count * SATA_SECTOR_SIZE/4);
+		m_mem->load(w_addr, (char*)&test_data[0], sizeof(uint32_t)*count * SATA_SECTOR_SIZE/4);
 		
 		// Perform DMA write (RAM to disk via SATA controller)
 		printf("TB: Issue DMA Write\n");
@@ -452,10 +445,10 @@ public:
 		
 		// Verify read data equals written data
 		printf("TB: Verifying read data matches written data...\n");
-		verify_data(w_addr, r_addr);
+		bool success = verify_data(w_addr, r_addr);
 
 		delete[] test_data;
-		return true;
+		return success;
 	}
 
 	// Execute PIO write operation
@@ -474,7 +467,7 @@ public:
 		wb_write_reg(SATA_LBAHI_ADDR, lba_hi);             // Upper bits
 		wb_write_reg(SATA_LBALO_ADDR, lba24);              // Lower 24 bits
 		wb_write_reg(SATA_COUNT_ADDR, count8);             // Count
-		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr);          // DMA address low
+		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr<<2);       // DMA address low
 		wb_write_reg(SATA_DMA_ADDR_HI, uint32_t(0));       // DMA address high
 		
 		// Construct the command FIS word for PIO write
@@ -484,6 +477,9 @@ public:
 
 		// Wait for operation to complete (interrupt)
 		wait_for_int();
+
+		// Write the received data to disk
+		write_to_disk(lba, m_sata->get_received_data(), count);
 		
 		printf("TB: PIO Write complete: LBA=%llu, Count=%u\n", 
 			(unsigned long long)lba, count);
@@ -505,13 +501,18 @@ public:
 		wb_write_reg(SATA_LBAHI_ADDR, lba_hi);             // Upper bits
 		wb_write_reg(SATA_LBALO_ADDR, lba24);              // Lower 24 bits
 		wb_write_reg(SATA_COUNT_ADDR, count8);             // Count
-		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr);          // DMA address low
+		wb_write_reg(SATA_DMA_ADDR_LO, dma_addr<<2);       // DMA address low
 		wb_write_reg(SATA_DMA_ADDR_HI, uint32_t(0));       // DMA address high
 		
 		// Construct the command FIS word for PIO read
 		uint32_t fis_cmd = (0x00 << 24) | (FIS_TYPE_PIO_READ_BUFFER << 16) | 
 						((0x40 | ((lba >> 24) & 0x0F)) << 8) | FIS_TYPE_REG_H2D;
 		wb_write_reg(SATA_CMD_ADDR, fis_cmd);            // Command
+
+		// Read data from disk
+		uint32_t* read_data = new uint32_t[count * (SATA_SECTOR_SIZE/4)];  // Allocate space for all sectors
+		read_from_disk(lba, read_data, count);
+		m_sata->set_sent_data(read_data);
 
 		// Wait for operation to complete (interrupt)
 		wait_for_int();
@@ -532,7 +533,7 @@ public:
 
 		printf("TB: Initialized test pattern for PIO\n");
 		// Load test data at address 0
-		m_mem->load(w_addr>>2, (char*)&test_data[0], sizeof(uint32_t)*count * (SATA_SECTOR_SIZE/4));
+		m_mem->load(w_addr, (char*)&test_data[0], sizeof(uint32_t)*count * (SATA_SECTOR_SIZE/4));
 		
 		// Perform PIO write
 		printf("TB: Issue PIO Write\n");
@@ -547,10 +548,10 @@ public:
 		
 		// Verify read data equals written data
 		printf("TB: Verifying PIO read data matches written data...\n");
-		verify_data(w_addr, r_addr);
+		bool success = verify_data(w_addr, r_addr);
 
 		delete[] test_data;
-		return true;
+		return success;
 	}
 };
 

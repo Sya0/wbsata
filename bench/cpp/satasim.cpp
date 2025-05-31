@@ -357,7 +357,7 @@ void SATASIM::device_link_receives() {
             
             // Store the data word
             if (!m_crc_matched && m_data_response) {
-                m_received_data[m_data_count-1] = raw_data;
+                m_received_data[m_data_count-1] = swap_endian(raw_data);
                 m_data_count++;
             }
         }

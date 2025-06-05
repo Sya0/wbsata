@@ -42,9 +42,6 @@ OBJDIR := obj-pc
 VTLD := ../../bench/verilog
 CPPD := .
 RTLD := ../../rtl
-VERILATOR_ROOT := $(shell bash -c 'verilator -V|grep VERILATOR_ROOT|tail -1|sed -e " s/^.*=\s*//"')
-VROOT := $(VERILATOR_ROOT)
-VERILATOR_INCLUDE := $(VROOT)/include
 
 # Verilator setup
 ifeq ($(VERILATOR_ROOT),)
@@ -59,31 +56,31 @@ ifeq ($(VERILATOR_ROOT),)
 $(error VERILATOR_ROOT is not set. Please install Verilator or set VERILATOR_ROOT)
 endif
 
+# Add verilator infrastructure sources
+VROOT := $(VERILATOR_ROOT)
+VINCS := $(VROOT)/include
+VSRCS := verilated.cpp verilated_vcd_c.cpp verilated_threads.cpp
+VOBJS := $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(VSRCS)))
+
 # C++ compiler flags
 CFLAGS := -Wall -O2 -g -std=c++14
-INCS   := -I$(OBJDIR) -I$(VERILATOR_INCLUDE) -I. -I$(CPPD)
+INCS   := -I$(OBJDIR) -I$(VINCS) -I. -I$(CPPD)
 LIBS   := -lz -lpthread
 
 # Source files
 SOURCES := tb_sata.cpp satasim.cpp memsim.cpp
 
-# Add verilator infrastructure sources
-VROOT := $(VERILATOR_ROOT)
-VINCS := -I$(VROOT)/include
-VSRCS := verilated.cpp verilated_vcd_c.cpp verilated_threads.cpp
-VOBJS := $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(VSRCS)))
-
 # Check if include directory exists
-ifeq ($(wildcard $(VERILATOR_INCLUDE)/verilated.cpp),)
-$(error Verilator include files not found at $(VERILATOR_INCLUDE))
+ifeq ($(wildcard $(VINCS)/verilated.cpp),)
+$(error Verilator include files not found at $(VINCS))
 endif
 
 # Verilator objects
-$(OBJDIR)/%.o: $(VERILATOR_INCLUDE)/%.cpp | $(OBJDIR)
+$(OBJDIR)/%.o: $(VINCS)/%.cpp | $(OBJDIR)
 	$(CXX) $(CFLAGS) $(VINCS) -c $< -o $@
 
 # Explicit rules for verilator objects
-$(OBJDIR)/%.o: $(VERILATOR_INCLUDE)/%.cpp
+$(OBJDIR)/%.o: $(VINCS)/%.cpp
 	$(mk-objdir)
 	$(CXX) $(CFLAGS) $(VINCS) -c $< -o $@
 
@@ -142,13 +139,13 @@ debug:
 	@echo "============= Build Environment ============="
 	@echo "VERILATOR_ROOT: $(VERILATOR_ROOT)"
 	@echo "VERILATOR: $(VERILATOR)"
-	@echo "VERILATOR_INCLUDE: $(VERILATOR_INCLUDE)"
+	@echo "VINCS: $(VINCS)"
 	@echo "RTLD: $(RTLD)"
 	@echo "OBJDIR: $(OBJDIR)"
 	@echo "============= File Checks ============="
 	@echo "sata_controller.v exists: $$(test -f $(RTLD)/sata_controller.v && echo Yes || echo No)"
-	@echo "verilated.cpp exists: $$(test -f $(VERILATOR_INCLUDE)/verilated.cpp && echo Yes || echo No)"
-	@echo "verilated_vcd_c.cpp exists: $$(test -f $(VERILATOR_INCLUDE)/verilated_vcd_c.cpp && echo Yes || echo No)"
+	@echo "verilated.cpp exists: $$(test -f $(VINCS)/verilated.cpp && echo Yes || echo No)"
+	@echo "verilated_vcd_c.cpp exists: $$(test -f $(VINCS)/verilated_vcd_c.cpp && echo Yes || echo No)"
 	@echo "obj-pc directory exists: $$(test -d $(OBJDIR) && echo Yes || echo No)"
 	@echo "============= Build Commands ============="
 	@echo "CXX: $(CXX)"

@@ -203,6 +203,9 @@ sub simline($) {
 		print VS "update_compile_order -fileset sim_1\n";
 		print VS "set_property -name {xsim.elaborate.debug_level} -value {all} -objects [get_filesets sim_1]\n";
 		print VS "set_property -name {xsim.simulate.runtime} -value {all} -objects [get_filesets sim_1]\n";
+		# Set Verilog defines for proper test script selection
+		print VS "set_property verilog_define {REGRESSION=1} [get_filesets sources_1]\n";
+		print VS "set_property verilog_define {REGRESSION=1} [get_filesets sim_1]\n";
 		print VS "launch_simulation -simset sim_1 -mode behavioral\n";
 		print VS "exit\n";
 		close(VS);

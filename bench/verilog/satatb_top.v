@@ -43,8 +43,11 @@
 // }}}
 module	satatb_top;
 `ifndef REGRESSION
- `include "testscript/sata_commands.v"
+	`include "testscript/sata_commands.v"
+`else
+	`include "testscript.v"
 `endif
+
 	// Local declarations
 	// {{{
 	parameter	ADDRESS_WIDTH = 27;	// Byte address width
@@ -726,12 +729,6 @@ module	satatb_top;
 	// Test-Bench driver
 	// {{{
 	reg	error_flag = 1'b0;
-
-//`ifdef	REGRESSION
-//`include	`SCRIPT
-//`else
-//`include	"testscript.v"
-//`endif
 
 	initial	begin
 		error_flag = 1'b0;

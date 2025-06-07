@@ -2,7 +2,7 @@
 # This Makefile coordinates all simulation and verification tasks
 
 # Default target
-all: cpp_sim formal verilog_sim
+all: create_dirs cpp_sim formal verilog_sim
 
 # Directory paths
 BENCH_DIR := bench
@@ -16,10 +16,11 @@ REPORT_DIR := $(BUILD_DIR)/reports
 LOG_DIR := $(BUILD_DIR)/logs
 
 # Create necessary directories
-$(shell mkdir -p $(BUILD_DIR) $(REPORT_DIR) $(LOG_DIR))
+create_dirs:
+	@mkdir -p $(BUILD_DIR) $(REPORT_DIR) $(LOG_DIR)
 
 # C++ Simulation
-cpp_sim:
+cpp_sim: create_dirs
 	@echo "Running C++ simulation..."
 	@cd $(CPP_DIR) && $(MAKE) clean && $(MAKE) run > ../../$(LOG_DIR)/cpp_sim.log 2>&1
 	@if [ $$? -eq 0 ]; then \
@@ -30,7 +31,7 @@ cpp_sim:
 	fi
 
 # Formal Verification
-formal:
+formal: create_dirs
 	@echo "Running formal verification..."
 	@cd $(FORMAL_DIR) && $(MAKE) clean && $(MAKE) all > ../../$(LOG_DIR)/formal.log 2>&1
 	@if [ $$? -eq 0 ]; then \
@@ -41,7 +42,7 @@ formal:
 	fi
 
 # Verilog Simulation
-verilog_sim:
+verilog_sim: create_dirs
 	@echo "Running Verilog simulation..."
 	@cd $(VERILOG_DIR) && perl sim_run.pl vivado all > ../../$(LOG_DIR)/verilog_sim.log 2>&1
 	@if [ $$? -eq 0 ]; then \

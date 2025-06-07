@@ -153,7 +153,6 @@ sub simline($) {
 		print "Debug: No test name found\n";
 		return();
 	} elsif ($vivado > 0) {	## Vivado test support
-		print "Debug: Running test with Vivado: $tstname\n";
 		## Create and run the test with Vivado
 		my $vivado_script = "vivado_sim.tcl";
 		open(VS, ">$vivado_script") or die "Cannot create Vivado script: $!";
@@ -218,12 +217,7 @@ sub simline($) {
 		my $elapsed = $end_time - $start_time;
 		print "Debug: Vivado execution completed in $elapsed seconds\n";
 		
-		# Cleanup temporary files and directories
-		print "Debug: Cleaning up temporary files and directories\n";
-		system("rm -f *.jou *.log testscript.v satalib.v vivado_sim.tcl");
-		system("rm -rf tmp_project");
-		
-		# Check for successful completion
+		# Check for successful completion BEFORE cleanup
 		my $logfile = "$tstname.log";
 		my $success = 0;
 		if (-e $logfile) {
@@ -236,6 +230,12 @@ sub simline($) {
 			}
 			close(LF);
 		}
+		
+		# Cleanup temporary files and directories (but keep test log files)
+		print "Debug: Cleaning up temporary files and directories\n";
+		system("rm -f testscript.v satalib.v vivado_sim.tcl");
+		system("rm -f *.jou");  # Remove journal files but keep test log files
+		system("rm -rf tmp_project");
 		
 		if ($success) {
 			push(@passed, $tstname);
@@ -296,6 +296,8 @@ if ($run_all) {
 	my $test_count = 0;
 	while($line = <TL>) {
 		next if ($line =~ /^\s*#/);
+		$test_count++;
+		print "Debug: Processing test $test_count: $line";
 		simline($line);
 	}
 	close(TL);

@@ -190,7 +190,7 @@ $(PEXTEND)_cvr/PASS: $(PEXTEND).sby $(RTL)/$(PEXTEND).v
 ## {{{
 bwrap: $(BWRAP)
 $(BWRAP): $(BWRAP)_prf/PASS
-$(BWRAP)_prf/PASS: ## $(BWRAP).sby $(BWRAP).v ../verilog/satatb_8b10b.v ../verilog/satatb_10b8b.v
+$(BWRAP)_prf/PASS: $(BWRAP).sby $(BWRAP).v ../verilog/mdl_s8b10b.v ../verilog/mdl_s10b8b.v
 	$(NOJOBSERVER) sby $(SBYFLAGS) $(BWRAP).sby prf
 ## }}}
 

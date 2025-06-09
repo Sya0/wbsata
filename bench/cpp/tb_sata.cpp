@@ -583,8 +583,12 @@ int	main(int argc, char **argv) {
 	success = tb.dma_test(test_lba, test_count, dma_addr);
 	if (success)
 		printf("DMA TEST SUMMARY: SUCCESS!\n");
-	else
+	else {
 		printf("DMA TEST SUMMARY: FAILED!\n");
+
+		// Exit early, so we can *see* the failed exit status
+		exit(EXIT_FAILURE);
+	}
 
 	// Wait between tests
 	tb.wait(1000);
@@ -594,8 +598,13 @@ int	main(int argc, char **argv) {
 	success = tb.pio_test(test_lba + SATA_SECTOR_SIZE, test_count, 0); // Use different LBA
 	if (success)
 		printf("PIO TEST SUMMARY: SUCCESS!\n");
-	else
+	else {
 		printf("PIO TEST SUMMARY: FAILED!\n");
+
+		// Exit early, so we can *see* the failed exit status
+		exit(EXIT_FAILURE);
+	}
+
 
 	tb.wait(1000);
 		
